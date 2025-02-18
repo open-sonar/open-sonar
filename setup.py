@@ -5,7 +5,7 @@ here = pathlib.Path(__file__).parent.resolve()
 long_description = (here / "README.md").read_text(encoding="utf-8")
 
 setup(
-    name="search-ai",
+    name="open-sonar",
     version="0.0.0",
     description="Still in development. Do not use till version 0.1.0.",
     long_description=long_description,
@@ -21,7 +21,7 @@ setup(
     },
     entry_points={
         "console_scripts": [
-            "search-ai = search-ai:run_search_ai",
+            "search-ai = search_ai:run_search_ai",
         ],
     },
 )
