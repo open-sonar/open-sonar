@@ -1,12 +1,9 @@
-//preliminary web scraper
-
 package main
 
 import (
 	"encoding/json"
 	"flag"
 	"fmt"
-	"log"
 	"net/http"
 	"net/url"
 	"regexp"
@@ -23,47 +20,101 @@ type PageInfo struct {
 	Title   string `json:"title,omitempty"`
 	Summary string `json:"summary,omitempty"`
 	Content string `json:"content,omitempty"`
-	Error   string `json:"error,omitempty"`
 }
 
-func searchDuckDuckGo(query string, maxPages int) ([]string, error) {
-	// build search URL
+func Scrape(query string, maxPages, maxRetries int) []PageInfo {
+	initialLinks := searchDuckDuckGo(query, maxPages*2)
+
+	// successful results channel
+	resultsChan := make(chan PageInfo, len(initialLinks))
+
+	// goroutine for each link in initialLinks
+	var wg sync.WaitGroup
+	for _, link := range initialLinks {
+		wg.Add(1)
+		go func(link string) {
+			defer wg.Done()
+
+			title, content := crawlPageWithRetry(link, maxRetries)
+			if content == "" || isPlaceholder(title, content) {
+				newLinks := searchDuckDuckGo(query, 1) // fetch 1 link
+				if len(newLinks) == 0 {
+					return 
+				}
+				newTitle, newContent := crawlPageWithRetry(newLinks[0], maxRetries)
+				if newContent == "" || isPlaceholder(newTitle, newContent) {
+					return 
+				}
+				link = newLinks[0]
+				title, content = newTitle, newContent
+			}
+
+			if content == "" || isPlaceholder(title, content) {
+				return
+			}
+
+			summary := summarize(content)
+			resultsChan <- PageInfo{
+				URL:     link,
+				Title:   title,
+				Content: content,
+				Summary: summary,
+			}
+		}(link)
+	}
+	go func() {
+		wg.Wait()
+		close(resultsChan)
+	}()
+
+	results := make([]PageInfo, 0, maxPages)
+	for page := range resultsChan {
+		results = append(results, page)
+		if len(results) >= maxPages {
+			break
+		}
+	}
+
+	return results
+}
+
+func searchDuckDuckGo(query string, maxLinks int) []string {
+	if maxLinks < 1 {
+		return nil
+	}
 	searchURL := "https://duckduckgo.com/html/?q=" + strings.ReplaceAll(query, " ", "+")
 	client := &http.Client{Timeout: 10 * time.Second}
 
 	req, err := http.NewRequest("GET", searchURL, nil)
 	if err != nil {
-		return nil, err
+		return nil
 	}
 	req.Header.Set("User-Agent", "Mozilla/5.0 (compatible; GoScraper/1.0)")
 
 	resp, err := client.Do(req)
 	if err != nil {
-		return nil, err
+		return nil
 	}
 	defer resp.Body.Close()
 
 	doc, err := goquery.NewDocumentFromReader(resp.Body)
 	if err != nil {
-		return nil, err
+		return nil
 	}
 
 	var links []string
 	doc.Find("a.result__a").Each(func(i int, s *goquery.Selection) {
-		if i >= maxPages {
+		if i >= maxLinks {
 			return
 		}
 		if href, exists := s.Attr("href"); exists {
-			// if link protocol relative
 			if strings.HasPrefix(href, "//") {
 				href = "https:" + href
 			}
-			// uddg check
-			parsed, err := url.Parse(href)
-			if err == nil {
+			if parsed, parseErr := url.Parse(href); parseErr == nil {
 				qparams := parsed.Query()
 				if uddg := qparams.Get("uddg"); uddg != "" {
-					if decoded, err := url.QueryUnescape(uddg); err == nil {
+					if decoded, decErr := url.QueryUnescape(uddg); decErr == nil {
 						href = decoded
 					}
 				}
@@ -71,12 +122,64 @@ func searchDuckDuckGo(query string, maxPages int) ([]string, error) {
 			links = append(links, href)
 		}
 	})
-	return links, nil
+	return links
 }
 
-// get rid of whitespace/newlines and remove irrelevant patterns
+func crawlPageWithRetry(urlStr string, maxRetries int) (string, string) {
+	var title, content string
+	for attempt := 1; attempt <= maxRetries; attempt++ {
+		title, content = crawlPage(urlStr)
+		if content != "" {
+			break
+		}
+		time.Sleep(time.Second * time.Duration(attempt)) // incremental backoff
+	}
+	return title, content
+}
+
+func crawlPage(urlStr string) (string, string) {
+	client := &http.Client{Timeout: 10 * time.Second}
+	req, err := http.NewRequest("GET", urlStr, nil)
+	if err != nil {
+		return "", ""
+	}
+	req.Header.Set("User-Agent", "Mozilla/5.0 (compatible; GoScraper/1.0)")
+
+	resp, err := client.Do(req)
+	if err != nil {
+		return "", ""
+	}
+	defer resp.Body.Close()
+
+	baseURL, parseErr := url.Parse(urlStr)
+	if parseErr != nil {
+		return "", ""
+	}
+	article, readErr := readability.FromReader(resp.Body, baseURL)
+	if readErr != nil {
+		return "", ""
+	}
+
+	title := strings.TrimSpace(article.Title)
+	content := cleanText(strings.TrimSpace(article.TextContent))
+	return title, content
+}
+
+func isPlaceholder(title, content string) bool {
+	tl := strings.ToLower(title)
+	switch {
+	case strings.Contains(tl, "just a moment"),
+		strings.Contains(tl, "one moment"),
+		strings.Contains(tl, "please wait"),
+		strings.Contains(tl, "checking your browser"),
+		strings.Contains(tl, "redirecting"):
+		return true
+	}
+	return len(content) < 50
+}
+
+// cleanText removes whitespace and irrelevant patterns
 func cleanText(text string) string {
-	// get rid of whitespace and newlines
 	text = strings.ReplaceAll(text, "\n", " ")
 	text = strings.ReplaceAll(text, "\t", " ")
 	text = strings.ReplaceAll(text, "\r", " ")
@@ -96,12 +199,12 @@ func cleanText(text string) string {
 		`(?i)comments.*`,                   // remove comment
 		`(?i)leave a reply.*`,              // remove comment submission
 		`(?i)watch now:.*`,                 // remove embedded videos
-		`(?i)continue reading.*`,           // remove pagination
+		`(?i)click here.*`,                 // remove clickbait phrases
+		`(?i)continue reading.*`,           // remove pagination prompts
 		`(?i)skip to main content.*`,       // remove accessibility prompts
-		`(?i)privacy policy.*`,             // remove privacy policy
+		`(?i)privacy policy.*`,             // remove privacy policy links
 		`(?i)terms of service.*`,           // remove terms and conditions
 	}
-
 	for _, pattern := range unwantedPatterns {
 		re := regexp.MustCompile(pattern)
 		text = re.ReplaceAllString(text, "")
@@ -110,36 +213,7 @@ func cleanText(text string) string {
 	return text
 }
 
-func crawlPage(urlStr string) (string, string, error) {
-	client := &http.Client{Timeout: 15 * time.Second}
-	req, err := http.NewRequest("GET", urlStr, nil)
-	if err != nil {
-		return "", "", err
-	}
-	req.Header.Set("User-Agent", "Mozilla/5.0 (compatible; GoScraper/1.0)")
-
-	resp, err := client.Do(req)
-	if err != nil {
-		return "", "", err
-	}
-	defer resp.Body.Close()
-
-	baseURL, err := url.Parse(urlStr)
-	if err != nil {
-		return "", "", err
-	}
-
-	article, err := readability.FromReader(resp.Body, baseURL)
-	if err != nil {
-		return "", "", err
-	}
-
-	title := strings.TrimSpace(article.Title)
-	content := cleanText(strings.TrimSpace(article.TextContent))
-	return title, content, nil
-}
-
-// return first two sentences of the content for summary
+// summarize returns the first two sentences as a summary
 func summarize(content string) string {
 	sentences := strings.Split(content, ".")
 	if len(sentences) < 2 {
@@ -149,52 +223,15 @@ func summarize(content string) string {
 }
 
 func main() {
-	query := flag.String("query", "", "Search query for web scraping")
-
-	pages := flag.Int("pages", 3, "# pages to scrape (default 3)")
-
+	query := flag.String("query", "", "Search query")
+	pages := flag.Int("pages", 3, "# pages to retrieve (default=3)")
+	retries := flag.Int("retries", 2, "# retries per page (default=2)")
 	flag.Parse()
-	if *query == "" {
-		log.Fatal("Provide search query using -query flag.")
-	}
 
-	fmt.Printf("Searching for: %s\n", *query)
+	fmt.Printf("Searching for: %s, retrieving %d pages\n", *query, *pages)
 
-	links, err := searchDuckDuckGo(*query, *pages)
-	if err != nil {
-		log.Fatalf("Search error: %v", err)
-	}
-	if len(links) == 0 {
-		log.Fatal("No search results found.")
-	}
+	results := Scrape(*query, *pages, *retries)
 
-	// link crawl
-	results := make([]PageInfo, len(links))
-	var wg sync.WaitGroup
-	for i, link := range links {
-		wg.Add(1)
-		go func(i int, link string) {
-			defer wg.Done()
-			title, content, err := crawlPage(link)
-			if err != nil {
-				results[i] = PageInfo{URL: link, Error: err.Error()}
-				return
-			}
-			summary := summarize(content)
-			results[i] = PageInfo{
-				URL:     link,
-				Title:   title,
-				Content: content,
-				Summary: summary,
-			}
-		}(i, link)
-	}
-	wg.Wait()
-
-	jsonData, err := json.MarshalIndent(results, "", "  ")
-	if err != nil {
-		log.Fatalf("Error compiling JSON: %v", err)
-	}
-
+	jsonData, _ := json.MarshalIndent(results, "", "  ")
 	fmt.Println(string(jsonData))
 }
