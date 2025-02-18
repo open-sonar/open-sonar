@@ -1,0 +1,17 @@
+{
+    "name": "open-sonar",
+    "version": "0.0.0",
+    "description": "Still in development. Do not use till version 0.1.0.",
+    "main": "index.js",
+    "bin": {
+      "fosum": "./index.js"
+    },
+    "files": [
+      "bin/search-ai",
+      "index.js",
+      "README.md"
+    ],
+    "author": "Rohan Adwankar <rohan.adwankar@gmail.com>",
+    "license": "MIT"
+  }
+  
