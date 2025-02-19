@@ -6,4 +6,5 @@ type ChatRequest struct {
     NeedSearch bool   `json:"need_search"` 
     Pages      int    `json:"pages"`      
     Retries    int    `json:"retries"`    
+	Provider   string `json:"provider"`  
 }
