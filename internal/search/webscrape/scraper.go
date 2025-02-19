@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"flag"
 	"fmt"
-	"io"
 	"math/rand"
 	"net/http"
 	"net/url"
@@ -13,15 +12,15 @@ import (
 	"sync"
 	"time"
 
-	"github.com/PuerkitoBio/goquery"
 	"github.com/go-shiori/go-readability"
+	"github.com/gocolly/colly/v2"
+	"github.com/gocolly/colly/v2/extensions"
 )
 
 func init() {
 	rand.Seed(time.Now().UnixNano())
 }
 
-//randomized user agents
 var userAgents = []string{
 	"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/115.0.0.0 Safari/537.36",
 	"Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/15.1 Safari/605.1.15",
@@ -43,10 +42,11 @@ type DuckDuckGoSearchProvider struct{}
 func (p *DuckDuckGoSearchProvider) Search(query string, maxPages, maxRetries int) ([]PageInfo, error) {
 	results := Scrape(query, maxPages, maxRetries)
 	if len(results) == 0 {
-		return nil, fmt.Errorf("no results found for query: %s", query)
+		return results, nil
 	}
 	return results, nil
 }
+
 
 type PageInfo struct {
 	URL     string `json:"url"`
@@ -116,63 +116,48 @@ func searchDuckDuckGo(query string, maxLinks int) []string {
 		return nil
 	}
 	searchURL := "https://duckduckgo.com/html/?q=" + strings.ReplaceAll(query, " ", "+")
-	client := &http.Client{Timeout: 10 * time.Second}
-
-	req, err := http.NewRequest("GET", searchURL, nil)
-	if err != nil {
-		return nil
-	}
-	req.Header.Set("User-Agent", randomUserAgent())
-
-	resp, err := client.Do(req)
-	if err != nil {
-		return nil
-	}
-	defer resp.Body.Close()
-
-	bodyBytes, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return nil
-	}
-
-	doc, err := goquery.NewDocumentFromReader(strings.NewReader(string(bodyBytes)))
-	if err != nil {
-		return nil
-	}
-
+	
+	c := colly.NewCollector()
+	extensions.RandomUserAgent(c)
+	
 	var links []string
 	// multiple selectors in case DuckDuckGo changes HTML structure
-	doc.Find("a.result__a, a.result__url").Each(func(i int, s *goquery.Selection) {
-		if i >= maxLinks {
+	c.OnHTML("a.result__a, a.result__url", func(e *colly.HTMLElement) {
+		if len(links) >= maxLinks {
 			return
 		}
-		if href, exists := s.Attr("href"); exists {
-			if strings.HasPrefix(href, "//") {
-				href = "https:" + href
-			}
-			if parsed, parseErr := url.Parse(href); parseErr == nil {
-				qparams := parsed.Query()
-				if uddg := qparams.Get("uddg"); uddg != "" {
-					if decoded, decErr := url.QueryUnescape(uddg); decErr == nil {
-						href = decoded
-					}
+		href := e.Attr("href")
+		if strings.HasPrefix(href, "//") {
+			href = "https:" + href
+		}
+		if parsed, parseErr := url.Parse(href); parseErr == nil {
+			qparams := parsed.Query()
+			if uddg := qparams.Get("uddg"); uddg != "" {
+				if decoded, decErr := url.QueryUnescape(uddg); decErr == nil {
+					href = decoded
 				}
 			}
-			links = append(links, href)
+		}
+		links = append(links, href)
+	})
+	c.OnResponse(func(r *colly.Response) {
+		// Check if blocked or rate-limited
+		if len(links) == 0 {
+			bodyStr := strings.ToLower(string(r.Body))
+			switch {
+			case strings.Contains(bodyStr, "rate limit"),
+				strings.Contains(bodyStr, "unusual traffic"),
+				strings.Contains(bodyStr, "captcha"):
+				fmt.Println("Potentially blocked or rate-limited by DuckDuckGo.")
+			}
 		}
 	})
-
-	// Check if blocked or rate-limited
-	if len(links) == 0 {
-		bodyStr := strings.ToLower(string(bodyBytes))
-		switch {
-		case strings.Contains(bodyStr, "rate limit"),
-			strings.Contains(bodyStr, "unusual traffic"),
-			strings.Contains(bodyStr, "captcha"):
-			fmt.Println("Potentially blocked or rate-limited by DuckDuckGo.")
-		}
+	
+	err := c.Visit(searchURL)
+	if err != nil {
+		return nil
 	}
-
+	
 	return links
 }
 
@@ -194,6 +179,7 @@ func crawlPage(urlStr string) (string, string) {
 	if err != nil {
 		return "", ""
 	}
+	// random user agent for standard http.Client calls
 	req.Header.Set("User-Agent", randomUserAgent())
 
 	resp, err := client.Do(req)
@@ -229,7 +215,7 @@ func isPlaceholder(title, content string) bool {
 	return len(content) < 50
 }
 
-// cleanText removes whitespace and irrelevant patterns
+//removes whitespace and irrelevant patterns
 func cleanText(text string) string {
 	text = strings.ReplaceAll(text, "\n", " ")
 	text = strings.ReplaceAll(text, "\t", " ")
