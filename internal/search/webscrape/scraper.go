@@ -162,7 +162,16 @@ func searchDuckDuckGo(query string, maxLinks int) []string {
 		}
 	})
 
-
+	// Check if blocked or rate-limited
+	if len(links) == 0 {
+		bodyStr := strings.ToLower(string(bodyBytes))
+		switch {
+		case strings.Contains(bodyStr, "rate limit"),
+			strings.Contains(bodyStr, "unusual traffic"),
+			strings.Contains(bodyStr, "captcha"):
+			fmt.Println("Potentially blocked or rate-limited by DuckDuckGo.")
+		}
+	}
 
 	return links
 }
