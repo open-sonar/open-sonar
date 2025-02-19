@@ -1,4 +1,4 @@
-package main
+package webscrape
 
 import (
 	"encoding/json"
@@ -14,6 +14,20 @@ import (
 	"github.com/PuerkitoBio/goquery"
 	"github.com/go-shiori/go-readability"
 )
+
+type SearchProvider interface {
+	Search(query string, maxPages, maxRetries int) ([]PageInfo, error)
+}
+
+type DuckDuckGoSearchProvider struct{}
+
+func (p *DuckDuckGoSearchProvider) Search(query string, maxPages, maxRetries int) ([]PageInfo, error) {
+	results := Scrape(query, maxPages, maxRetries)
+	if len(results) == 0 {
+		return nil, fmt.Errorf("no results found for query: %s", query)
+	}
+	return results, nil
+}
 
 type PageInfo struct {
 	URL     string `json:"url"`
@@ -37,13 +51,13 @@ func Scrape(query string, maxPages, maxRetries int) []PageInfo {
 
 			title, content := crawlPageWithRetry(link, maxRetries)
 			if content == "" || isPlaceholder(title, content) {
-				newLinks := searchDuckDuckGo(query, 1) // fetch 1 link
+				newLinks := searchDuckDuckGo(query, 1)
 				if len(newLinks) == 0 {
-					return 
+					return
 				}
 				newTitle, newContent := crawlPageWithRetry(newLinks[0], maxRetries)
 				if newContent == "" || isPlaceholder(newTitle, newContent) {
-					return 
+					return
 				}
 				link = newLinks[0]
 				title, content = newTitle, newContent
@@ -132,7 +146,7 @@ func crawlPageWithRetry(urlStr string, maxRetries int) (string, string) {
 		if content != "" {
 			break
 		}
-		time.Sleep(time.Second * time.Duration(attempt)) // incremental backoff
+		time.Sleep(time.Second * time.Duration(attempt))
 	}
 	return title, content
 }
@@ -177,8 +191,7 @@ func isPlaceholder(title, content string) bool {
 	}
 	return len(content) < 50
 }
-
-// cleanText removes whitespace and irrelevant patterns
+//removes whitespace and irrelevant patterns
 func cleanText(text string) string {
 	text = strings.ReplaceAll(text, "\n", " ")
 	text = strings.ReplaceAll(text, "\t", " ")
@@ -230,7 +243,12 @@ func main() {
 
 	fmt.Printf("Searching for: %s, retrieving %d pages\n", *query, *pages)
 
-	results := Scrape(*query, *pages, *retries)
+	provider := &DuckDuckGoSearchProvider{}
+	results, err := provider.Search(*query, *pages, *retries)
+	if err != nil {
+		fmt.Println("Error:", err)
+		return
+	}
 
 	jsonData, _ := json.MarshalIndent(results, "", "  ")
 	fmt.Println(string(jsonData))
