@@ -16,8 +16,9 @@
   - Expose RESTful endpoints (e.g., Gorilla Mux)
   - Validate and parse incoming requests (user message, system prompt)
 
-- **Decision Engine:**
+- **Decision Filter:**
   - Determine need for real-time web search vs. direct LLM query
+  - An explicit engine may provide more overhead than just carrying out the queries so for now this will be just be an optional parameter to an API request.
 
 - **Search & Citation Extraction Module (Optional):**
   - Invoke web search (e.g., Colly/goquery)
