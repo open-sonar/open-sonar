@@ -69,8 +69,9 @@
 │   │   ├── openai.go            # Concrete adapter implementation for OpenAI
 │   │   └── anthropic.go         # Concrete adapter implementation for Anthropic
 │   ├── search                   # Real-time web search functionality
-│   │   ├── web-scrape           # Web scraping functionality
+│   │   ├── webscrape           # Web scraping functionality
 │   │   │   ├── scraper.go
+│   │   │   ├── scraper.exe
 │   │   │   ├── Makefile
 │   │   │   └── webscrape_test.go
 │   │   ├── search.go            # Core functions to perform web searches (e.g., via Colly/goquery)
