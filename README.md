@@ -13,20 +13,22 @@
 ## Pipeline 
 
 - **API Request Handling:**
-  - Expose RESTful endpoints (e.g., Gorilla Mux)
-  - Validate and parse incoming requests (user message, system prompt)
+  - Exposes RESTful endpoints (e.g., /test, /chat, /chat/completions).
+  - Validate and parse incoming requests (ChatRequest with fields like query, need_search, pages, retries, and provider).
 
 - **Decision Filter:**
   - Determine need for real-time web search vs. direct LLM query
-  - An explicit engine may provide more overhead than just carrying out the queries so for now this will be just be an optional parameter to an API request.
+  - If required, performs a real-time web search to gather additional context before calling an LLM.
 
-- **Search & Citation Extraction Module (Optional):**
-  - Invoke web search (e.g., Colly/goquery)
-  - Extract and format citations from search results
+- **Search & Citation Extraction Module:**
+  - Uses a DuckDuckGo-based scraper built with GoQuery and go-readability.
+  - Randomizes User-Agent strings to reduce blocking.
+  - Extracts search result links and summarizes page content for citation extraction.
 
 - **LLM Adapter Layer:**
-  - Use langchaingo for unified LLM API calls
-  - Support multiple providers (OpenAI, Anthropic, Ollama, etc.)
+  - Provides a unified interface (LLMProvider) for multiple LLM integrations.
+  - Implements adapters for OpenAI (via Langchaingo) and Anthropic, with placeholders for Ollama.
+  - Exposes a direct LLM API endpoint (/chat/completions) for queries that don’t require a web search.
 
 - **Response Aggregation & Formatting:**
   - Combine LLM output with extra context (search results, citations)
@@ -58,16 +60,19 @@
 │       └── main.go              # Bootstraps the application (config, routes, logging, etc.)
 ├── internal                     # Core business logic and internal modules (not exposed externally)
 │   ├── api                      # HTTP handlers and route definitions
-│   │   ├── handlers.go          # Functions that handle individual API endpoints
+│   │   ├── handlers_test.go          # Functions that handle individual API endpoints
+│   │   ├── handlers.go          
 │   │   └── routes.go            # Maps endpoints (e.g., /chat/completions) to handlers
 │   ├── llm                      # LLM integration layer (adapter logic)
 │   │   ├── adapter.go           # Defines the generic LLM interface for adapter implementations
+│   │   ├── ollama.go
 │   │   ├── openai.go            # Concrete adapter implementation for OpenAI
 │   │   └── anthropic.go         # Concrete adapter implementation for Anthropic
 │   ├── search                   # Real-time web search functionality
 │   │   ├── web-scrape           # Web scraping functionality
 │   │   │   ├── scraper.go
-│   │   │   └── Makefile
+│   │   │   ├── Makefile
+│   │   │   └── webscrape_test.go
 │   │   ├── search.go            # Core functions to perform web searches (e.g., via Colly/goquery)
 │   │   └── filters.go           # Functions to apply customizable search filters
 │   ├── citations                # Citation extraction and formatting module
