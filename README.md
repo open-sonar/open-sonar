@@ -64,6 +64,9 @@
 │   │   ├── openai.go            # Concrete adapter implementation for OpenAI
 │   │   └── anthropic.go         # Concrete adapter implementation for Anthropic
 │   ├── search                   # Real-time web search functionality
+│   │   ├── web-scrape           # Web scraping functionality
+│   │   │   ├── scraper.go
+│   │   │   └── Makefile
 │   │   ├── search.go            # Core functions to perform web searches (e.g., via Colly/goquery)
 │   │   └── filters.go           # Functions to apply customizable search filters
 │   ├── citations                # Citation extraction and formatting module
