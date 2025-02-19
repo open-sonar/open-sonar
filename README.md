@@ -77,6 +77,7 @@
 │   │   ├── search.go            # Core functions to perform web searches (e.g., via Colly/goquery)
 │   │   └── filters.go           # Functions to apply customizable search filters
 │   ├── citations                # Citation extraction and formatting module
+│   │   ├── extractor_test.go
 │   │   └── extractor.go         # Parses search results to extract and format citations
 │   ├── cache                    # Caching and rate limiting functionality
 │   │   ├── redis.go             # Integration with Redis (or similar) for caching responses
@@ -84,6 +85,7 @@
 │   ├── config                   # Configuration management module
 │   │   └── config.go            # Loads and validates configuration files (YAML/JSON)
 │   ├── models                   # Data models and API response schemas
+│   │   ├── request.go
 │   │   └── response.go          # Defines structures (e.g., ChatResponse) for consistent JSON output
 │   └── utils                    # Utility functions (logging, error handling, etc.)
 │       └── logger.go            # Sets up structured logging and helper functions
