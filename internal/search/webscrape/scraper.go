@@ -4,6 +4,8 @@ import (
 	"encoding/json"
 	"flag"
 	"fmt"
+	"io"
+	"math/rand"
 	"net/http"
 	"net/url"
 	"regexp"
@@ -14,6 +16,23 @@ import (
 	"github.com/PuerkitoBio/goquery"
 	"github.com/go-shiori/go-readability"
 )
+
+func init() {
+	rand.Seed(time.Now().UnixNano())
+}
+
+//randomized user agents
+var userAgents = []string{
+	"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/115.0.0.0 Safari/537.36",
+	"Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/15.1 Safari/605.1.15",
+	"Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/114.0.0.0 Safari/537.36",
+	"Mozilla/5.0 (iPhone; CPU iPhone OS 15_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/15.0 Mobile/15E148 Safari/604.1",
+	"Mozilla/5.0 (iPad; CPU OS 14_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/14.0 Mobile/15E148 Safari/604.1",
+}
+
+func randomUserAgent() string {
+	return userAgents[rand.Intn(len(userAgents))]
+}
 
 type SearchProvider interface {
 	Search(query string, maxPages, maxRetries int) ([]PageInfo, error)
@@ -103,7 +122,7 @@ func searchDuckDuckGo(query string, maxLinks int) []string {
 	if err != nil {
 		return nil
 	}
-	req.Header.Set("User-Agent", "Mozilla/5.0 (compatible; GoScraper/1.0)")
+	req.Header.Set("User-Agent", randomUserAgent())
 
 	resp, err := client.Do(req)
 	if err != nil {
@@ -111,13 +130,19 @@ func searchDuckDuckGo(query string, maxLinks int) []string {
 	}
 	defer resp.Body.Close()
 
-	doc, err := goquery.NewDocumentFromReader(resp.Body)
+	bodyBytes, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil
+	}
+
+	doc, err := goquery.NewDocumentFromReader(strings.NewReader(string(bodyBytes)))
 	if err != nil {
 		return nil
 	}
 
 	var links []string
-	doc.Find("a.result__a").Each(func(i int, s *goquery.Selection) {
+	// multiple selectors in case DuckDuckGo changes HTML structure
+	doc.Find("a.result__a, a.result__url").Each(func(i int, s *goquery.Selection) {
 		if i >= maxLinks {
 			return
 		}
@@ -136,6 +161,9 @@ func searchDuckDuckGo(query string, maxLinks int) []string {
 			links = append(links, href)
 		}
 	})
+
+
+
 	return links
 }
 
@@ -146,7 +174,7 @@ func crawlPageWithRetry(urlStr string, maxRetries int) (string, string) {
 		if content != "" {
 			break
 		}
-		time.Sleep(time.Second * time.Duration(attempt))
+		time.Sleep(time.Second * time.Duration(attempt)) // incremental backoff
 	}
 	return title, content
 }
@@ -157,7 +185,7 @@ func crawlPage(urlStr string) (string, string) {
 	if err != nil {
 		return "", ""
 	}
-	req.Header.Set("User-Agent", "Mozilla/5.0 (compatible; GoScraper/1.0)")
+	req.Header.Set("User-Agent", randomUserAgent())
 
 	resp, err := client.Do(req)
 	if err != nil {
@@ -191,7 +219,8 @@ func isPlaceholder(title, content string) bool {
 	}
 	return len(content) < 50
 }
-//removes whitespace and irrelevant patterns
+
+// cleanText removes whitespace and irrelevant patterns
 func cleanText(text string) string {
 	text = strings.ReplaceAll(text, "\n", " ")
 	text = strings.ReplaceAll(text, "\t", " ")
@@ -226,7 +255,6 @@ func cleanText(text string) string {
 	return text
 }
 
-// summarize returns the first two sentences as a summary
 func summarize(content string) string {
 	sentences := strings.Split(content, ".")
 	if len(sentences) < 2 {
