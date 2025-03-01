@@ -3,8 +3,12 @@ package webscrape
 import (
 	"fmt"
 	"open-sonar/internal/utils"
+	"os"
 	"strings"
 )
+
+// Use mock provider in test mode
+var testMode = os.Getenv("TEST_MODE") == "true"
 
 // ScrapeWithOptions performs web scraping with additional options
 func ScrapeWithOptions(query string, options SearchOptions) []PageInfo {
@@ -12,8 +16,13 @@ func ScrapeWithOptions(query string, options SearchOptions) []PageInfo {
 	searchTimer := utils.NewTimer("DuckDuckGo search")
 	defer searchTimer.Stop()
 
-	// Create a new provider
-	provider := &DuckDuckGoSearchProvider{}
+	// Create provider - use mock in test mode
+	var provider SearchProvider
+	if testMode {
+		provider = &MockSearchProvider{}
+	} else {
+		provider = &DuckDuckGoSearchProvider{}
+	}
 
 	// Perform the search
 	results, err := provider.Search(query, options)

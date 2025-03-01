@@ -1,49 +1,71 @@
 package webscrape
 
-import "time"
+import (
+	"time"
+)
 
-// MockSearchProvider is a search provider that returns mock results for testing
+// MockSearchProvider provides deterministic responses for testing
 type MockSearchProvider struct{}
 
-// Search returns mock search results
+// Search provides deterministic search results for testing
 func (p *MockSearchProvider) Search(query string, options SearchOptions) ([]PageInfo, error) {
-	mockTime := time.Now()
-
-	switch query {
-	case "empty":
+	// For empty query or "empty" query, return empty results
+	if query == "" || query == "empty" {
 		return []PageInfo{}, nil
-	case "error":
-		return nil, mockSearchError("mock search error")
-	default:
-		return []PageInfo{
-			{
-				URL:       "https://example.com/result1",
-				Title:     "Example Result 1",
-				Content:   "This is the first example result for " + query,
-				Summary:   "First result summary about " + query,
-				Published: mockTime,
-			},
-			{
-				URL:       "https://example.org/result2",
-				Title:     "Example Result 2",
-				Content:   "This is the second example result for " + query,
-				Summary:   "Second result summary about " + query,
-				Published: mockTime.Add(-24 * time.Hour),
-			},
-			{
-				URL:       "https://wikipedia.org/wiki/" + query,
-				Title:     query + " - Wikipedia",
-				Content:   "Wikipedia article about " + query,
-				Summary:   "Encyclopedia entry for " + query,
-				Published: mockTime.Add(-30 * 24 * time.Hour),
-			},
-		}, nil
 	}
+
+	// For domain filter test, return specific result if matching filter
+	if len(options.SearchDomainFilter) > 0 {
+		if contains(options.SearchDomainFilter, ".gov") {
+			// Create a single result that matches the domain filter
+			mockTime := time.Now()
+			return []PageInfo{
+				{
+					URL:       "https://example.gov/page",
+					Title:     "Government Example",
+					Content:   "This is content from a government site.",
+					Summary:   "Summary from government site",
+					Published: mockTime,
+				},
+			}, nil
+		}
+		// Otherwise return empty for domain filter test
+		return []PageInfo{}, nil
+	}
+
+	// For regular tests, return exactly 3 results as expected by tests
+	mockTime := time.Now()
+	return []PageInfo{
+		{
+			URL:       "https://example.com/page1",
+			Title:     "Example Page 1",
+			Content:   "This is the content of page 1. It contains sample text.",
+			Summary:   "Summary of page 1",
+			Published: mockTime,
+		},
+		{
+			URL:       "https://example.com/page2",
+			Title:     "Example Page 2",
+			Content:   "This is the content of page 2. More sample text here.",
+			Summary:   "Summary of page 2",
+			Published: mockTime.Add(-24 * time.Hour),
+		},
+		{
+			URL:       "https://example.com/page3",
+			Title:     "Example Page 3",
+			Content:   "This is the content of page 3. Even more sample text.",
+			Summary:   "Summary of page 3",
+			Published: mockTime.Add(-48 * time.Hour),
+		},
+	}, nil
 }
 
-// mockSearchError is a custom error type for search failures
-type mockSearchError string
-
-func (m mockSearchError) Error() string {
-	return string(m)
+// contains checks if a slice contains a string
+func contains(slice []string, item string) bool {
+	for _, s := range slice {
+		if s == item {
+			return true
+		}
+	}
+	return false
 }

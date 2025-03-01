@@ -2,6 +2,7 @@ package search
 
 import (
 	"open-sonar/internal/search/webscrape"
+	"open-sonar/internal/utils"
 )
 
 // SearchOptions specifies search parameters
@@ -46,4 +47,39 @@ func Search(query string, options SearchOptions) ([]Result, error) {
 	}
 
 	return searchResults, nil
+}
+
+// RunSearch performs a web search with the given parameters
+func RunSearch(query string, maxPages int, maxRetries int, domainFilters []string) []webscrape.PageInfo {
+	// Create search options
+	options := webscrape.SearchOptions{
+		MaxPages:           maxPages,
+		MaxRetries:         maxRetries,
+		SearchDomainFilter: domainFilters,
+	}
+
+	// Execute the search using the webscrape package
+	results := webscrape.ScrapeWithOptions(query, options)
+
+	// Log search statistics
+	utils.Info("Search completed: " +
+		utils.FormatInt(len(results)) + " results found for query: " + query)
+
+	return results
+}
+
+// SearchWithFilters performs a search with additional filters
+func SearchWithFilters(query string, maxPages int, maxRetries int,
+	domainFilters []string, recencyFilter string) []webscrape.PageInfo {
+
+	// Create search options
+	options := webscrape.SearchOptions{
+		MaxPages:            maxPages,
+		MaxRetries:          maxRetries,
+		SearchDomainFilter:  domainFilters,
+		SearchRecencyFilter: recencyFilter,
+	}
+
+	// Execute the search
+	return webscrape.ScrapeWithOptions(query, options)
 }

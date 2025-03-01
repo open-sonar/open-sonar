@@ -75,12 +75,12 @@ curl -X POST "http://localhost:8080/chat/completions" \
 # Run unit tests (uses mocks)
 make test
 
-# Run E2E tests with mock LLM
-make e2e-test
-
 # Run E2E tests with real LLM (requires Ollama)
 make e2e-test-prod
 
+#optional ones
+# Run E2E tests with mock LLM
+make e2e-test
 # Run integration tests specifically for Ollama
 make integration-test
 ```

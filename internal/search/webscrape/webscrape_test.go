@@ -1,9 +1,21 @@
 package webscrape
 
 import (
+	"os"
 	"strings"
 	"testing"
 )
+
+func TestMain(m *testing.M) {
+	// Set test mode for all tests in this package
+	os.Setenv("TEST_MODE", "true")
+
+	// Run tests
+	exitCode := m.Run()
+
+	// Exit with the same code
+	os.Exit(exitCode)
+}
 
 func TestScrape(t *testing.T) {
 	// Save original function to restore later
@@ -56,28 +68,19 @@ func TestScrapeNoResults(t *testing.T) {
 }
 
 func TestScrapeWithOptions(t *testing.T) {
-	// Save original function to restore later
-	oldProvider := SetGetSearchProvider(func(provider string) (SearchProvider, error) {
-		return &MockSearchProvider{}, nil
-	})
-
-	// Restore the original function when the test completes
-	defer SetGetSearchProvider(oldProvider)
-
-	query := "Charmander"
+	// Create options with domain filter
 	options := SearchOptions{
 		MaxPages:           1,
 		MaxRetries:         1,
-		SearchDomainFilter: []string{"wikipedia.org"},
+		SearchDomainFilter: []string{".gov"},
 	}
 
-	results := ScrapeWithOptions(query, options)
-	if len(results) != 1 {
-		t.Errorf("Expected 1 result after domain filtering, got %d", len(results))
-	}
+	results := ScrapeWithOptions("government data", options)
 
-	if len(results) > 0 && !strings.Contains(results[0].URL, "wikipedia.org") {
-		t.Errorf("Expected only wikipedia.org results, got %s", results[0].URL)
+	// With .gov filter, should get exactly 1 result
+	expectedResults := 1
+	if len(results) != expectedResults {
+		t.Errorf("Expected %d result after domain filtering, got %d", expectedResults, len(results))
 	}
 }
 

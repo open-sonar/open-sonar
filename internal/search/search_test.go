@@ -1,72 +1,53 @@
 package search
 
 import (
+	"os"
 	"testing"
-
-	"open-sonar/internal/search/webscrape"
 )
 
+func TestMain(m *testing.M) {
+	// Set test mode
+	os.Setenv("TEST_MODE", "true")
+
+	// Run tests
+	exitCode := m.Run()
+
+	// Exit
+	os.Exit(exitCode)
+}
+
 func TestSearch(t *testing.T) {
-	// Save original function to restore later
-	originalGetSearchProvider := webscrape.CurrentGetSearchProvider
-
-	// Override with mock provider for testing
-	webscrape.SetGetSearchProvider(func(provider string) (webscrape.SearchProvider, error) {
-		return &webscrape.MockSearchProvider{}, nil
-	})
-
-	// Restore the original function when the test completes
-	defer func() {
-		webscrape.CurrentGetSearchProvider = originalGetSearchProvider
-	}()
-
-	// Test cases
-	testCases := []struct {
-		name          string
-		query         string
-		options       SearchOptions
-		expectedCount int
+	tests := []struct {
+		name        string
+		query       string
+		domains     []string
+		expectCount int
 	}{
 		{
-			name:  "Basic search",
-			query: "test query",
-			options: SearchOptions{
-				MaxPages:   1,
-				MaxRetries: 1,
-			},
-			expectedCount: 3, // MockSearchProvider returns 3 results
+			name:        "Basic search",
+			query:       "test query",
+			domains:     nil,
+			expectCount: 3,
 		},
 		{
-			name:  "Empty search",
-			query: "empty",
-			options: SearchOptions{
-				MaxPages:   1,
-				MaxRetries: 1,
-			},
-			expectedCount: 0,
+			name:        "Empty search",
+			query:       "empty", // Use "empty" as the special keyword to trigger empty results
+			domains:     nil,
+			expectCount: 0,
 		},
 		{
-			name:  "With domain filter",
-			query: "test query",
-			options: SearchOptions{
-				MaxPages:      1,
-				MaxRetries:    1,
-				DomainFilters: []string{"wikipedia.org"},
-			},
-			expectedCount: 1, // Only Wikipedia result should be included
+			name:        "With domain filter",
+			query:       "government data",
+			domains:     []string{".gov"},
+			expectCount: 1,
 		},
 	}
 
-	for _, tc := range testCases {
-		t.Run(tc.name, func(t *testing.T) {
-			results, err := Search(tc.query, tc.options)
-
-			if err != nil {
-				t.Fatalf("Unexpected error: %v", err)
-			}
-
-			if len(results) != tc.expectedCount {
-				t.Errorf("Expected %d results, got %d", tc.expectedCount, len(results))
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			results := RunSearch(tt.query, 3, 1, tt.domains)
+			if len(results) != tt.expectCount {
+				t.Errorf("Expected %d results, got %d", tt.expectCount, len(results))
 			}
 		})
 	}

@@ -2,18 +2,20 @@ package models
 
 // ChatCompletionRequest is the request for chat completions
 type ChatCompletionRequest struct {
-	Model               string    `json:"model"`
-	Messages            []Message `json:"messages"`
-	Temperature         *float64  `json:"temperature,omitempty"`
-	TopP                *float64  `json:"top_p,omitempty"`
-	TopK                int       `json:"top_k,omitempty"`
-	MaxTokens           int       `json:"max_tokens,omitempty"`
-	Stream              bool      `json:"stream,omitempty"`
-	PresencePenalty     *float64  `json:"presence_penalty,omitempty"`
-	FrequencyPenalty    *float64  `json:"frequency_penalty,omitempty"`
-	SearchDomainFilter  []string  `json:"search_domain_filter,omitempty"`
-	SearchRecencyFilter string    `json:"search_recency_filter,omitempty"`
-	ResponseFormat      *string   `json:"response_format,omitempty"`
+	Model                  string    `json:"model"`
+	Messages               []Message `json:"messages"`
+	Temperature            *float64  `json:"temperature,omitempty"`
+	TopP                   *float64  `json:"top_p,omitempty"`
+	TopK                   int       `json:"top_k,omitempty"`
+	MaxTokens              int       `json:"max_tokens,omitempty"`
+	Stream                 bool      `json:"stream,omitempty"`
+	PresencePenalty        *float64  `json:"presence_penalty,omitempty"`
+	FrequencyPenalty       *float64  `json:"frequency_penalty,omitempty"`
+	SearchDomainFilter     []string  `json:"search_domain_filter,omitempty"`
+	SearchRecencyFilter    string    `json:"search_recency_filter,omitempty"`
+	ResponseFormat         *string   `json:"response_format,omitempty"`
+	ReturnImages           bool      `json:"return_images,omitempty"`
+	ReturnRelatedQuestions bool      `json:"return_related_questions,omitempty"`
 }
 
 // ChatCompletionResponse is the response object for chat completions
