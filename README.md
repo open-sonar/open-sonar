@@ -1,3 +1,21 @@
+# Open Sonar
+
+An open-source implementation of the Perplexity Sonar API that can be run on-premises.
+
+## Features
+
+- Chat completion API compatible with Perplexity's API
+- Support for web searches to enhance responses
+- Customizable parameters (temperature, top_p, etc.)
+- Support for multiple LLM backends (OpenAI, Anthropic)
+- Domain filtering and recency filtering for search results
+
+## Quick Start
+
+1. Clone the repository
+2. Copy `example.env` to `.env` and fill in your API keys
+3. Build and run the server:
+
 # Plan
 
 ## Goals
