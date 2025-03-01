@@ -1,4 +1,4 @@
-.PHONY: build test run clean
+.PHONY: build test run clean deps clean-deps
 
 # Default compiler flags
 GO_FLAGS=-trimpath -ldflags "-s -w"
@@ -22,3 +22,13 @@ clean:
 	@echo "Cleaning up..."
 	@rm -f $(BINARY_NAME)
 	@go clean
+
+deps:
+	@echo "Updating dependencies..."
+	@chmod +x scripts/update_deps.sh
+	@./scripts/update_deps.sh
+
+clean-deps:
+	@echo "Cleaning and rebuilding dependencies..."
+	@chmod +x scripts/clean_deps.sh
+	@./scripts/clean_deps.sh

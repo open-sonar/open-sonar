@@ -139,26 +139,41 @@ func ChatCompletionsHandler(w http.ResponseWriter, r *http.Request) {
 	// Perform web search for sonar models
 	if needsSearch {
 		utils.Info(fmt.Sprintf("Performing web search for query: %s", userQuery))
-		results := webscrape.ScrapeWithOptions(userQuery, searchOptions)
 
-		if len(results) > 0 {
-			// Format search results for context
-			searchContext := "Web Search Results:\n"
-			for i, result := range results {
-				if i >= 5 { // Limit to 5 results
-					break
-				}
-				searchContext += fmt.Sprintf("[%d] %s - %s\n", i+1, result.Title, result.URL)
-				if result.Summary != "" {
-					searchContext += fmt.Sprintf("Summary: %s\n\n", result.Summary)
-				}
-			}
+		// Create a search timer
+		searchTimer := utils.NewTimer("Web search")
 
-			// Add search context to the messages
-			messages = append(messages, fmt.Sprintf("system: Use these search results to answer the user's query:\n%s", searchContext))
+		// Extract search queries from the user message
+		searchQueries := extractSearchQueries(userQuery)
+
+		// Perform searches for each extracted query
+		var allResults []webscrape.PageInfo
+		for _, query := range searchQueries {
+			results := webscrape.ScrapeWithOptions(query, searchOptions)
+			allResults = append(allResults, results...)
+		}
+
+		// Score and rank results by relevance to the original query
+		rankedResults := rankResultsByRelevance(allResults, userQuery)
+
+		// Limit to most relevant results
+		maxResults := 8
+		if len(rankedResults) > maxResults {
+			rankedResults = rankedResults[:maxResults]
+		}
+
+		searchTimer.Stop()
+
+		if len(rankedResults) > 0 {
+			// Create system prompt with search context
+			systemPrompt := createSearchPromptTemplate(userQuery, rankedResults)
+			messages = append(messages, fmt.Sprintf("system: %s", systemPrompt))
 
 			// Extract citations
-			citationURLs = citations.ExtractCitationURLs(results)
+			citationURLs = citations.ExtractCitationURLs(rankedResults)
+		} else {
+			// No results found, let LLM know
+			messages = append(messages, "system: No relevant search results were found for this query. Please respond based on your training data.")
 		}
 	}
 
@@ -203,7 +218,146 @@ func ChatCompletionsHandler(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(completionResponse)
 }
 
-// ChatHandler decides whether to perform a web search before calling the LLM.
+// extractSearchQueries breaks down a complex query into search-friendly queries
+func extractSearchQueries(query string) []string {
+	// For simple implementation, just return the original query
+	// In a more advanced implementation, we could use NLP to extract key topics
+	return []string{query}
+}
+
+// rankResultsByRelevance scores and ranks results by relevance to the query
+func rankResultsByRelevance(results []webscrape.PageInfo, query string) []webscrape.PageInfo {
+	// Simple relevance scoring based on keyword presence
+	type scoredResult struct {
+		result webscrape.PageInfo
+		score  float64
+	}
+
+	// Create a list to hold scored results
+	scoredResults := make([]scoredResult, 0, len(results))
+
+	// Convert query to lowercase for case-insensitive matching
+	lowercaseQuery := strings.ToLower(query)
+	queryTerms := strings.Fields(lowercaseQuery)
+
+	for _, result := range results {
+		// Base score
+		score := 1.0
+
+		// Title match weight is higher
+		lowercaseTitle := strings.ToLower(result.Title)
+		for _, term := range queryTerms {
+			if strings.Contains(lowercaseTitle, term) {
+				score += 2.0
+			}
+		}
+
+		// Content match
+		lowercaseContent := strings.ToLower(result.Content)
+		for _, term := range queryTerms {
+			if strings.Contains(lowercaseContent, term) {
+				score += 1.0
+			}
+		}
+
+		// Domain credibility bonus (simple version)
+		if strings.Contains(result.URL, ".edu") ||
+			strings.Contains(result.URL, ".gov") ||
+			strings.Contains(result.URL, "wikipedia.org") {
+			score += 1.5
+		}
+
+		// Add to scored results
+		scoredResults = append(scoredResults, scoredResult{
+			result: result,
+			score:  score,
+		})
+	}
+
+	// Sort results by score (descending)
+	utils.SortScored(scoredResults, func(i, j int) bool {
+		return scoredResults[i].score > scoredResults[j].score
+	})
+
+	// Extract just the results
+	rankedResults := make([]webscrape.PageInfo, 0, len(scoredResults))
+	for _, scored := range scoredResults {
+		rankedResults = append(rankedResults, scored.result)
+	}
+
+	return rankedResults
+}
+
+// createSearchPromptTemplate creates a system prompt incorporating search results
+func createSearchPromptTemplate(query string, results []webscrape.PageInfo) string {
+	promptTemplate := `I'll help answer the question based on the web search results provided below.
+
+USER QUERY: %s
+
+WEB SEARCH RESULTS:
+%s
+
+INSTRUCTIONS:
+1. Use ONLY the information from these search results to answer the user's query
+2. If the search results don't contain relevant information, admit that you don't have enough information
+3. Provide a comprehensive answer that synthesizes information from multiple sources
+4. Include specific facts and details from the sources
+5. Cite sources using [1], [2], etc., corresponding to the search result numbers
+6. DO NOT make up or include information not present in these search results
+7. Maintain a helpful, informative, and accurate tone
+
+Your answer should be well-structured, accurate, and directly address the user's query.`
+
+	// Format the search results
+	searchResultsText := ""
+	for i, result := range results {
+		searchResultsText += fmt.Sprintf("[%d] %s\nURL: %s\n", i+1, result.Title, result.URL)
+		if result.Summary != "" {
+			searchResultsText += fmt.Sprintf("Summary: %s\n\n", result.Summary)
+		} else if result.Content != "" {
+			// Use truncated content if summary not available
+			content := result.Content
+			if len(content) > 300 {
+				content = content[:300] + "..."
+			}
+			searchResultsText += fmt.Sprintf("Content: %s\n\n", content)
+		}
+	}
+
+	return fmt.Sprintf(promptTemplate, query, searchResultsText)
+}
+
+// formatEnhancedSearchResults creates a better formatted context for the LLM
+func formatEnhancedSearchResults(results []webscrape.PageInfo, query string) string {
+	formattedResults := fmt.Sprintf("Web search results for query: \"%s\"\n\n", query)
+
+	for i, result := range results {
+		formattedResults += fmt.Sprintf("[%d] %s\n", i+1, result.Title)
+		formattedResults += fmt.Sprintf("URL: %s\n", result.URL)
+
+		if result.Summary != "" && len(result.Summary) > 0 {
+			// Truncate summary if it's too long
+			summary := result.Summary
+			if len(summary) > 300 {
+				summary = summary[:300] + "..."
+			}
+			formattedResults += fmt.Sprintf("Summary: %s\n", summary)
+		} else if result.Content != "" {
+			// Use content if summary isn't available
+			content := result.Content
+			if len(content) > 200 {
+				content = content[:200] + "..."
+			}
+			formattedResults += fmt.Sprintf("Content: %s\n", content)
+		}
+
+		formattedResults += "\n"
+	}
+
+	return formattedResults
+}
+
+// ChatHandler handles legacy chat requests
 func ChatHandler(w http.ResponseWriter, r *http.Request) {
 	bodyBytes, err := io.ReadAll(r.Body)
 	if err != nil {

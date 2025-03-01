@@ -71,6 +71,10 @@ func Warn(msg string) {
 
 // Error logs an error level message
 func Error(msg string) {
+	// Skip error logging in test mode if desired
+	if os.Getenv("TEST_MODE") == "true" && os.Getenv("TEST_VERBOSE") != "true" {
+		return
+	}
 	LogMessage(ErrorLevel, msg)
 }
 
