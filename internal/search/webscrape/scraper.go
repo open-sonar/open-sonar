@@ -1,3 +1,6 @@
+//go:build ignore
+// +build ignore
+
 package webscrape
 
 import (
@@ -46,7 +49,6 @@ func (p *DuckDuckGoSearchProvider) Search(query string, maxPages, maxRetries int
 	}
 	return results, nil
 }
-
 
 type PageInfo struct {
 	URL     string `json:"url"`
@@ -116,10 +118,10 @@ func searchDuckDuckGo(query string, maxLinks int) []string {
 		return nil
 	}
 	searchURL := "https://duckduckgo.com/html/?q=" + strings.ReplaceAll(query, " ", "+")
-	
+
 	c := colly.NewCollector()
 	extensions.RandomUserAgent(c)
-	
+
 	var links []string
 	// multiple selectors in case DuckDuckGo changes HTML structure
 	c.OnHTML("a.result__a, a.result__url", func(e *colly.HTMLElement) {
@@ -152,12 +154,12 @@ func searchDuckDuckGo(query string, maxLinks int) []string {
 			}
 		}
 	})
-	
+
 	err := c.Visit(searchURL)
 	if err != nil {
 		return nil
 	}
-	
+
 	return links
 }
 
@@ -215,7 +217,7 @@ func isPlaceholder(title, content string) bool {
 	return len(content) < 50
 }
 
-//removes whitespace and irrelevant patterns
+// removes whitespace and irrelevant patterns
 func cleanText(text string) string {
 	text = strings.ReplaceAll(text, "\n", " ")
 	text = strings.ReplaceAll(text, "\t", " ")
@@ -223,24 +225,24 @@ func cleanText(text string) string {
 	text = strings.Join(strings.Fields(text), " ")
 
 	unwantedPatterns := []string{
-		`(?i)related articles:.*`,          // remove related articles
-		`(?i)see also:.*`,                  // remove see also
-		`(?i)references\s*\d*.*`,           // remove references
-		`(?i)external links:.*`,            // remove external links
-		`(?i)share this article.*`,         // remove share
-		`(?i)you might also like.*`,        // remove suggested
-		`(?i)advertisement.*`,              // remove ads
-		`(?i)subscribe for more.*`,         // remove subscription prompts
-		`(?i)trending now:.*`,              // remove trending
-		`(?i)follow us on.*`,               // remove social media
-		`(?i)comments.*`,                   // remove comment
-		`(?i)leave a reply.*`,              // remove comment submission
-		`(?i)watch now:.*`,                 // remove embedded videos
-		`(?i)click here.*`,                 // remove clickbait phrases
-		`(?i)continue reading.*`,           // remove pagination prompts
-		`(?i)skip to main content.*`,       // remove accessibility prompts
-		`(?i)privacy policy.*`,             // remove privacy policy links
-		`(?i)terms of service.*`,           // remove terms and conditions
+		`(?i)related articles:.*`,    // remove related articles
+		`(?i)see also:.*`,            // remove see also
+		`(?i)references\s*\d*.*`,     // remove references
+		`(?i)external links:.*`,      // remove external links
+		`(?i)share this article.*`,   // remove share
+		`(?i)you might also like.*`,  // remove suggested
+		`(?i)advertisement.*`,        // remove ads
+		`(?i)subscribe for more.*`,   // remove subscription prompts
+		`(?i)trending now:.*`,        // remove trending
+		`(?i)follow us on.*`,         // remove social media
+		`(?i)comments.*`,             // remove comment
+		`(?i)leave a reply.*`,        // remove comment submission
+		`(?i)watch now:.*`,           // remove embedded videos
+		`(?i)click here.*`,           // remove clickbait phrases
+		`(?i)continue reading.*`,     // remove pagination prompts
+		`(?i)skip to main content.*`, // remove accessibility prompts
+		`(?i)privacy policy.*`,       // remove privacy policy links
+		`(?i)terms of service.*`,     // remove terms and conditions
 	}
 	for _, pattern := range unwantedPatterns {
 		re := regexp.MustCompile(pattern)

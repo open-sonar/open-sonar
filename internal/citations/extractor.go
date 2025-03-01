@@ -38,6 +38,7 @@ const CitationSchema = `{
   "required": ["created", "citations"]
 }`
 
+// ExtractCitations converts PageInfo objects to citations
 func ExtractCitations(pages []webscrape.PageInfo, style string) CitationResponse {
 	var citations []Citation
 	for _, page := range pages {
@@ -57,4 +58,13 @@ func ExtractCitations(pages []webscrape.PageInfo, style string) CitationResponse
 		Created:   time.Now().Unix(),
 		Citations: citations,
 	}
+}
+
+// ExtractCitationURLs returns just the URLs from PageInfo objects
+func ExtractCitationURLs(pages []webscrape.PageInfo) []string {
+	var urls []string
+	for _, page := range pages {
+		urls = append(urls, page.URL)
+	}
+	return urls
 }
