@@ -139,3 +139,32 @@ func extractDomain(url string) string {
 	}
 	return url
 }
+
+// CreateMockResults creates sample PageInfo instances for testing
+func CreateMockResults() []PageInfo {
+	mockTime := time.Now()
+
+	return []PageInfo{
+		{
+			URL:       "https://example.com/page1",
+			Title:     "Example Page 1",
+			Content:   "This is the content of page 1. It contains sample text.",
+			Summary:   "Summary of page 1",
+			Published: mockTime,
+		},
+		{
+			URL:       "https://example.com/page2",
+			Title:     "Example Page 2",
+			Content:   "This is the content of page 2. More sample text here.",
+			Summary:   "Summary of page 2",
+			Published: mockTime.Add(-24 * time.Hour),
+		},
+		{
+			URL:       "https://example.com/page3",
+			Title:     "Example Page 3",
+			Content:   "This is the content of page 3. Even more sample text.",
+			Summary:   "Summary of page 3",
+			Published: mockTime.Add(-30 * 24 * time.Hour),
+		},
+	}
+}

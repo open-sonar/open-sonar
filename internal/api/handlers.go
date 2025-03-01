@@ -169,8 +169,15 @@ func ChatCompletionsHandler(w http.ResponseWriter, r *http.Request) {
 			systemPrompt := createSearchPromptTemplate(userQuery, rankedResults)
 			messages = append(messages, fmt.Sprintf("system: %s", systemPrompt))
 
-			// Extract citations
+			// Extract citations - make sure this actually returns non-empty values
 			citationURLs = citations.ExtractCitationURLs(rankedResults)
+
+			// Log the extracted citations for debugging
+			if len(citationURLs) > 0 {
+				utils.Info(fmt.Sprintf("Extracted %d citations", len(citationURLs)))
+			} else {
+				utils.Warn("No citations were extracted from search results")
+			}
 		} else {
 			// No results found, let LLM know
 			messages = append(messages, "system: No relevant search results were found for this query. Please respond based on your training data.")
