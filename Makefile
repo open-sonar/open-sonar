@@ -1,4 +1,4 @@
-.PHONY: build test run clean deps clean-deps
+.PHONY: build test run clean deps clean-deps e2e-test
 
 # Default compiler flags
 GO_FLAGS=-trimpath -ldflags "-s -w"
@@ -32,3 +32,8 @@ clean-deps:
 	@echo "Cleaning and rebuilding dependencies..."
 	@chmod +x scripts/clean_deps.sh
 	@./scripts/clean_deps.sh
+
+e2e-test:
+	@echo "Running E2E tests..."
+	@chmod +x scripts/e2e_test.sh
+	@./scripts/e2e_test.sh
