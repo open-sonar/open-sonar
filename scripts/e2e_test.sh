@@ -12,10 +12,19 @@ NC='\033[0m' # No Color
 
 echo -e "${YELLOW}Starting Open Sonar E2E Test${NC}"
 
+# Check if Ollama is running
+if ! curl -s "http://localhost:11434/api/version" > /dev/null; then
+  echo -e "${RED}Ollama server not detected at http://localhost:11434${NC}"
+  echo -e "${YELLOW}For production use, please ensure Ollama is running.${NC}"
+  echo -e "${YELLOW}Falling back to TEST_MODE with mocked LLM for tests.${NC}"
+  # Use mock provider for tests if Ollama isn't available
+  export TEST_MODE=true
+fi
+
 # Setup test environment variables
 export PORT=8765
-export TEST_MODE=true
 export LOG_LEVEL=INFO
+export OLLAMA_MODEL=deepseek-r1:1.5b
 
 # Working directory
 SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )"
@@ -63,8 +72,7 @@ curl -s -X POST "http://localhost:$PORT/chat" \
   -H "Content-Type: application/json" \
   -d '{
     "query": "What is the capital of France?",
-    "needSearch": false,
-    "provider": "mock"
+    "needSearch": false
   }' | jq
 
 # Test 3: Web search enhanced query
@@ -75,17 +83,16 @@ curl -s -X POST "http://localhost:$PORT/chat" \
     "query": "Latest news about artificial intelligence",
     "needSearch": true,
     "pages": 1,
-    "retries": 1,
-    "provider": "mock"
+    "retries": 1
   }' | jq
 
-# Test 4: Chat completions endpoint (OpenAI API compatible)
+# Test 4: Chat completions endpoint
 echo -e "\n${YELLOW}Test 4: Chat completions API:${NC}"
 curl -s -X POST "http://localhost:$PORT/chat/completions" \
   -H "Content-Type: application/json" \
   -H "Authorization: Bearer test-token" \
   -d '{
-    "model": "mock",
+    "model": "deepseek-r1:1.5b",
     "messages": [
       {"role": "system", "content": "You are a helpful assistant."},
       {"role": "user", "content": "What are the benefits of open source software?"}

@@ -21,7 +21,7 @@ func (p *MockLLMProvider) GenerateResponse(query string) (string, error) {
 	if strings.Contains(query, "ERROR_TEST") {
 		return "", fmt.Errorf("mock error for testing")
 	}
-	return fmt.Sprintf("Mock response to your query about: %s", query), nil
+	return fmt.Sprintf("This is a mock response from deepseek-r1:1.5b to your query about: %s", query), nil
 }
 
 // GenerateResponseWithOptions returns a canned response with options
@@ -37,10 +37,6 @@ func (p *MockLLMProvider) GenerateResponseWithOptions(messages []string, options
 		}
 	}
 
-	// Build response including summary of options
-	response := "Mock LLM response with options:\n"
-	response += fmt.Sprintf("Temperature: %.1f, TopP: %.1f\n", options.Temperature, options.TopP)
-
 	// Extract user query from messages
 	userQuery := "your query"
 	for _, msg := range messages {
@@ -54,7 +50,7 @@ func (p *MockLLMProvider) GenerateResponseWithOptions(messages []string, options
 	}
 
 	// Include message content
-	response += fmt.Sprintf("Based on your messages, I'd say: This is a mock response to '%s'", userQuery)
+	response := fmt.Sprintf("This is a mock response from deepseek-r1:1.5b to '%s'.", userQuery)
 
 	return response, nil
 }

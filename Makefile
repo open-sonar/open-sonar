@@ -1,4 +1,4 @@
-.PHONY: build test run clean deps clean-deps e2e-test
+.PHONY: build test run clean deps clean-deps e2e-test langchain integration-test e2e-test-prod
 
 # Default compiler flags
 GO_FLAGS=-trimpath -ldflags "-s -w"
@@ -34,6 +34,21 @@ clean-deps:
 	@./scripts/clean_deps.sh
 
 e2e-test:
-	@echo "Running E2E tests..."
+	@echo "Running E2E tests with mock LLM..."
 	@chmod +x scripts/e2e_test.sh
 	@./scripts/e2e_test.sh
+
+e2e-test-prod:
+	@echo "Running E2E tests with real Ollama LLM..."
+	@chmod +x scripts/e2e_test_prod.sh
+	@./scripts/e2e_test_prod.sh
+
+langchain:
+	@echo "Updating langchain dependencies..."
+	@chmod +x scripts/update_langchain.sh
+	@./scripts/update_langchain.sh
+
+integration-test:
+	@echo "Running integration tests..."
+	@chmod +x scripts/run_integration_tests.sh
+	@./scripts/run_integration_tests.sh

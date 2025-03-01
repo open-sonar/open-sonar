@@ -1,6 +1,9 @@
 package llm
 
-import "fmt"
+import (
+	"fmt"
+	"strings"
+)
 
 // LLMProviderFunc is a function type for creating LLM providers
 type LLMProviderFunc func(provider string) (LLMProvider, error)
@@ -12,12 +15,24 @@ var DefaultLLMProviderFunc LLMProviderFunc = func(provider string) (LLMProvider,
 		return NewOpenAIClient()
 	case "anthropic":
 		return NewAnthropicClient()
-	case "ollama":
-		return nil, fmt.Errorf("ollama provider not implemented yet")
+	case "ollama", "":
+		// Default to Ollama if no provider specified
+		return NewOllamaClient()
 	case "sonar", "sonar-small-online", "sonar-medium-online", "sonar-large-online":
-		// Default to OpenAI for sonar models
-		return NewOpenAIClient()
+		// Use Ollama for sonar models
+		return NewOllamaClient()
+	case "mock":
+		// Only used in tests
+		return NewMockLLMProvider()
 	default:
+		// Check if this is an Ollama model name
+		if strings.HasPrefix(provider, "deepseek") ||
+			strings.Contains(provider, ":") || // Catches format like "model:tag"
+			strings.Contains(provider, "llama") {
+			// Treat as an Ollama model name
+			return NewOllamaClient()
+		}
+
 		return nil, fmt.Errorf("unsupported LLM provider: %s", provider)
 	}
 }
