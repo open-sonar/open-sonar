@@ -2,6 +2,7 @@ package sonar
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"os"
@@ -160,6 +161,82 @@ func (s *Server) GetServerURL() string {
 		protocol = "https"
 	}
 	return fmt.Sprintf("%s://localhost:%d", protocol, s.Config.Port)
+}
+
+// OllamaStatus represents the status of an Ollama server
+type OllamaStatus struct {
+	Available   bool     `json:"available"`
+	Version     string   `json:"version"`
+	Models      []string `json:"models"`
+	ServerTime  string   `json:"server_time"`
+	Initialized bool     `json:"initialized"`
+}
+
+// CheckOllama verifies if an Ollama server is available at the given host
+func (s *Server) CheckOllama() (OllamaStatus, error) {
+	host := s.Config.OllamaHost
+	if host == "" {
+		host = "http://localhost:11434"
+	}
+
+	status := OllamaStatus{
+		Available:   false,
+		ServerTime:  time.Now().Format(time.RFC3339),
+		Models:      []string{},
+		Initialized: false,
+	}
+
+	// Check if Ollama server is running
+	versionResp, err := http.Get(host + "/api/version")
+	if err != nil {
+		return status, fmt.Errorf("failed to connect to Ollama server: %w", err)
+	}
+	defer versionResp.Body.Close()
+
+	if versionResp.StatusCode != http.StatusOK {
+		return status, fmt.Errorf("Ollama server returned non-OK status: %d", versionResp.StatusCode)
+	}
+
+	// Parse version info
+	var versionInfo struct {
+		Version string `json:"version"`
+	}
+	if err := json.NewDecoder(versionResp.Body).Decode(&versionInfo); err == nil {
+		status.Version = versionInfo.Version
+	}
+
+	// Mark as available
+	status.Available = true
+
+	// Get available models
+	modelResp, err := http.Get(host + "/api/tags")
+	if err == nil && modelResp.StatusCode == http.StatusOK {
+		defer modelResp.Body.Close()
+
+		var modelList struct {
+			Models []struct {
+				Name string `json:"name"`
+			} `json:"models"`
+		}
+
+		if err := json.NewDecoder(modelResp.Body).Decode(&modelList); err == nil {
+			for _, model := range modelList.Models {
+				status.Models = append(status.Models, model.Name)
+			}
+
+			// Check if our configured model is available
+			for _, model := range status.Models {
+				if model == s.Config.OllamaModel {
+					status.Initialized = true
+					break
+				}
+			}
+		}
+	}
+
+	utils.Info(fmt.Sprintf("Ollama server check: available=%v, version=%s, models=%d",
+		status.Available, status.Version, len(status.Models)))
+	return status, nil
 }
 
 // setEnvironmentVariables sets environment variables from config
