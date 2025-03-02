@@ -17,8 +17,8 @@ test-internal:
 
 test-package:
 	@echo "Running package tests..."
-	@chmod +x ./scripts/test_package.sh
-	@./scripts/test_package.sh
+	@chmod +x ./scripts/package_test.sh
+	@./scripts/package_test.sh
 
 test-e2e:
 	@echo "Running end-to-end tests..."

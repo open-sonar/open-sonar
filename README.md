@@ -2,6 +2,8 @@
 
 A web-search enhanced AI assistant that combines the power of web search with local LLM inference to provide accurate, up-to-date information with source citations.
 
+Currently in progress, when complete we will port it over as a Python and JS package.
+
 ## Features
 
 - 🔍 **Web Search Integration**: Augments LLM responses with real-time web search results
@@ -26,21 +28,8 @@ A web-search enhanced AI assistant that combines the power of web search with lo
 
 ### Running the Server
 
-The easiest way to run the server is with our dev script:
-
-```
-# Clone the repository
-git clone https://github.com/yourusername/open-sonar.git
-cd open-sonar
-
-# Install dependencies
-make deps
-
-# Start the development server
-./scripts/dev_server.sh
-```
-
-This will start the server on port 8080 (default). You can customize settings in the .env file.
+We currently provide a Dockerfile and a Go Package.
+Check package_test.sh and docker_test.sh for information on how to run the server.
 
 ## Using the API
 ### Simple Chat API
@@ -68,55 +57,6 @@ curl -X POST "http://localhost:8080/chat/completions" \
     "search_domain_filter": [".edu", ".gov", ".org"]
   }'
 ```
-
-## Development
-### Running Tests
-```
-# Run unit tests (uses mocks)
-make test
-
-# Run E2E tests with real LLM (requires Ollama)
-make e2e-test-prod
-
-#optional ones
-# Run E2E tests with mock LLM
-make e2e-test
-# Run integration tests specifically for Ollama
-make integration-test
-```
-
-### Structure
-/cmd/server - Server entry point
-/internal - Internal packages
-/api - API handlers and routing
-/cache - Caching layer
-/citations - Citation extraction and formatting
-/llm - LLM provider interfaces
-/models - Data structures and models
-/search - Search abstraction
-/webscrape - Web scraping implementations
-/utils - Shared utilities
-
-## Config
-Copy example.env to .env and adjust the settings:
-```
-# Server configuration
-PORT=8080
-LOG_LEVEL=INFO  # DEBUG, INFO, WARN, ERROR
-
-# Authentication
-AUTH_TOKEN=your-auth-token-here
-
-# LLM configuration
-OLLAMA_MODEL=deepseek-r1:1.5b
-OLLAMA_HOST=http://localhost:11434
-
-# Alternative LLM providers (optional)
-OPENAI_API_KEY=your-openai-api-key-here
-OPENAI_MODEL=gpt-3.5-turbo
-```
-
-# Plan
 
 ## Goals
 
@@ -163,4 +103,3 @@ OPENAI_MODEL=gpt-3.5-turbo
 - **Containerization & Deployment:**
   - Dockerfiles and CI/CD pipelines.
   - Plan for horizontal scaling?
-
