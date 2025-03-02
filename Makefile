@@ -1,4 +1,4 @@
-.PHONY: build test run clean deps clean-deps e2e-test langchain integration-test e2e-test-prod
+.PHONY: build test test-internal test-package test-e2e test-docker run clean dev tidy
 
 # Default compiler flags
 GO_FLAGS=-trimpath -ldflags "-s -w"
@@ -10,9 +10,29 @@ build:
 	@echo "Building Open Sonar..."
 	@go build $(GO_FLAGS) -o $(BINARY_NAME) ./cmd/server
 
-test:
-	@echo "Running tests..."
+# Individual test targets
+test-internal:
+	@echo "Running internal tests..."
 	@go test ./internal/... -v
+
+test-package:
+	@echo "Running package tests..."
+	@chmod +x ./scripts/test_package.sh
+	@./scripts/test_package.sh
+
+test-e2e:
+	@echo "Running end-to-end tests..."
+	@chmod +x ./scripts/e2e_test.sh
+	@./scripts/e2e_test.sh
+
+test-docker:
+	@echo "Running Docker tests..."
+	@chmod +x ./scripts/docker_test.sh
+	@./scripts/docker_test.sh
+
+# Master test target that runs all tests
+test: test-internal test-package test-e2e test-docker
+	@echo "All tests completed successfully"
 
 run: build
 	@echo "Starting Open Sonar server..."
@@ -23,32 +43,10 @@ clean:
 	@rm -f $(BINARY_NAME)
 	@go clean
 
-deps:
-	@echo "Updating dependencies..."
-	@chmod +x scripts/update_deps.sh
-	@./scripts/update_deps.sh
+dev: 
+	@echo "Starting development server..."
+	@go run ./cmd/server/main.go
 
-clean-deps:
-	@echo "Cleaning and rebuilding dependencies..."
-	@chmod +x scripts/clean_deps.sh
-	@./scripts/clean_deps.sh
-
-e2e-test:
-	@echo "Running E2E tests with mock LLM..."
-	@chmod +x scripts/e2e_test.sh
-	@./scripts/e2e_test.sh
-
-e2e-test-prod:
-	@echo "Running E2E tests with real Ollama LLM..."
-	@chmod +x scripts/e2e_test_prod.sh
-	@./scripts/e2e_test_prod.sh
-
-langchain:
-	@echo "Updating langchain dependencies..."
-	@chmod +x scripts/update_langchain.sh
-	@./scripts/update_langchain.sh
-
-integration-test:
-	@echo "Running integration tests..."
-	@chmod +x scripts/run_integration_tests.sh
-	@./scripts/run_integration_tests.sh
+tidy:
+	@echo "Tidying Go modules..."
+	@go mod tidy
