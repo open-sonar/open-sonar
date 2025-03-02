@@ -1,4 +1,4 @@
-.PHONY: build test run clean deps clean-deps e2e-test langchain integration-test e2e-test-prod
+.PHONY: build test run clean deps clean-deps e2e-test langchain integration-test e2e-test-prod docker-test
 
 # Default compiler flags
 GO_FLAGS=-trimpath -ldflags "-s -w"
@@ -52,3 +52,7 @@ integration-test:
 	@echo "Running integration tests..."
 	@chmod +x scripts/run_integration_tests.sh
 	@./scripts/run_integration_tests.sh
+
+docker-test:
+	@chmod +x ./scripts/docker_test.sh
+	@./scripts/docker_test.sh
