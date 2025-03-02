@@ -1,58 +1,46 @@
 package main
 
 import (
-	"fmt"
 	"log"
-	"net/http"
 	"os"
+	"strconv"
 
-	"open-sonar/internal/api"
 	"open-sonar/internal/utils"
-
-	"github.com/joho/godotenv"
+	"open-sonar/sonar"
 )
 
 func main() {
-	// Load .env file
-	err := godotenv.Load()
-	if err != nil {
-		log.Println("No .env file found, using environment variables.")
+	// Parse port from environment
+	port := 8080
+	if portStr := os.Getenv("PORT"); portStr != "" {
+		if p, err := strconv.Atoi(portStr); err == nil {
+			port = p
+		}
 	}
 
-	// Set log level
-	logLevelStr := os.Getenv("LOG_LEVEL")
-	if logLevelStr != "" {
-		setLogLevelFromString(logLevelStr)
+	// Parse log level from environment
+	logLevel := utils.InfoLevel
+	if logLevelStr := os.Getenv("LOG_LEVEL"); logLevelStr != "" {
+		switch logLevelStr {
+		case "DEBUG":
+			logLevel = utils.DebugLevel
+		case "INFO":
+			logLevel = utils.InfoLevel
+		case "WARN":
+			logLevel = utils.WarnLevel
+		case "ERROR":
+			logLevel = utils.ErrorLevel
+		}
 	}
 
-	utils.Info("Starting open-sonar server...")
-	router := api.SetupRoutes()
+	// Create server with options from environment
+	server := sonar.NewServer(
+		sonar.WithPort(port),
+		sonar.WithLogLevel(logLevel), // Now correctly passing utils.LogLevel
+	)
 
-	// Get port from environment or use default
-	port := os.Getenv("PORT")
-	if port == "" {
-		port = "8080"
-	}
-
-	utils.Info(fmt.Sprintf("Listening on port %s", port))
-	err = http.ListenAndServe(":"+port, router)
-	if err != nil {
-		utils.Error(fmt.Sprintf("Server failed: %v", err))
-	}
-}
-
-// setLogLevelFromString sets the log level from a string
-func setLogLevelFromString(level string) {
-	switch level {
-	case "DEBUG":
-		utils.SetLogLevel(utils.DebugLevel)
-	case "INFO":
-		utils.SetLogLevel(utils.InfoLevel)
-	case "WARN":
-		utils.SetLogLevel(utils.WarnLevel)
-	case "ERROR":
-		utils.SetLogLevel(utils.ErrorLevel)
-	default:
-		utils.SetLogLevel(utils.InfoLevel)
+	// Run the server (blocking)
+	if err := server.Run(); err != nil {
+		log.Fatalf("Server error: %v", err)
 	}
 }
