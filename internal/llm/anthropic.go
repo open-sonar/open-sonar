@@ -11,7 +11,7 @@ import (
 	"open-sonar/internal/utils"
 )
 
-// AnthropicClient implements the LLM provider interface for Anthropic
+// AnthropicClient implements the LLM provider interface for Anthropic.
 type AnthropicClient struct {
 	apiKey string
 	model  string
@@ -46,7 +46,14 @@ type anthropicResponse struct {
 	} `json:"usage"`
 }
 
-// NewAnthropicClient creates a new Anthropic client
+// init registers the Anthropic provider with the pluggable registry.
+func init() {
+	RegisterProvider("anthropic", func(_ string) (LLMProvider, error) {
+		return NewAnthropicClient()
+	})
+}
+
+// NewAnthropicClient creates a new Anthropic client.
 func NewAnthropicClient() (*AnthropicClient, error) {
 	apiKey := os.Getenv("ANTHROPIC_API_KEY")
 	if apiKey == "" {
@@ -55,7 +62,7 @@ func NewAnthropicClient() (*AnthropicClient, error) {
 
 	model := os.Getenv("ANTHROPIC_MODEL")
 	if model == "" {
-		model = "claude-3-opus-20240229" // Default model
+		model = "claude-3-opus-20240229" // Default model.
 	}
 
 	return &AnthropicClient{
@@ -64,21 +71,21 @@ func NewAnthropicClient() (*AnthropicClient, error) {
 	}, nil
 }
 
-// GenerateResponse implements the LLMProvider interface
+// GenerateResponse implements the LLMProvider interface.
 func (c *AnthropicClient) GenerateResponse(query string) (string, error) {
 	options := DefaultLLMOptions()
 	messages := []string{fmt.Sprintf("user: %s", query)}
 	return c.GenerateResponseWithOptions(messages, options)
 }
 
-// GenerateResponseWithOptions implements the LLMProvider interface with options
+// GenerateResponseWithOptions implements the LLMProvider interface with options.
 func (c *AnthropicClient) GenerateResponseWithOptions(messages []string, options LLMOptions) (string, error) {
-	// Convert messages format
+	// Convert messages format.
 	var anthropicMessages []anthropicMessage
 	for _, message := range messages {
 		parts := strings.SplitN(message, ": ", 2)
 		if len(parts) < 2 {
-			// Handle malformed messages
+			// Handle malformed messages.
 			anthropicMessages = append(anthropicMessages, anthropicMessage{
 				Role:    "user",
 				Content: message,
@@ -89,10 +96,10 @@ func (c *AnthropicClient) GenerateResponseWithOptions(messages []string, options
 		role := parts[0]
 		content := parts[1]
 
-		// Convert to Anthropic expected roles
+		// Convert to Anthropic expected roles.
 		switch role {
 		case "system":
-			// Skip system message - add it at the beginning of the first user message
+			// Skip system message - add it at the beginning of the first user message.
 			if len(anthropicMessages) > 0 && anthropicMessages[0].Role == "user" {
 				anthropicMessages[0].Content = content + "\n\n" + anthropicMessages[0].Content
 			} else {
@@ -107,7 +114,7 @@ func (c *AnthropicClient) GenerateResponseWithOptions(messages []string, options
 		case "user":
 			role = "user"
 		default:
-			role = "user" // Default to user for unknown roles
+			role = "user" // Default to user for unknown roles.
 		}
 
 		anthropicMessages = append(anthropicMessages, anthropicMessage{
@@ -116,7 +123,7 @@ func (c *AnthropicClient) GenerateResponseWithOptions(messages []string, options
 		})
 	}
 
-	// Create request
+	// Create request.
 	reqBody := anthropicRequest{
 		Model:       c.model,
 		Messages:    anthropicMessages,
@@ -136,12 +143,12 @@ func (c *AnthropicClient) GenerateResponseWithOptions(messages []string, options
 		return "", fmt.Errorf("error creating request: %w", err)
 	}
 
-	// Set headers
+	// Set headers.
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("x-api-key", c.apiKey)
 	req.Header.Set("anthropic-version", "2023-06-01")
 
-	// Make the request
+	// Make the request.
 	client := &http.Client{}
 	resp, err := client.Do(req)
 	if err != nil {
@@ -149,7 +156,7 @@ func (c *AnthropicClient) GenerateResponseWithOptions(messages []string, options
 	}
 	defer resp.Body.Close()
 
-	// Check status
+	// Check status.
 	if resp.StatusCode != http.StatusOK {
 		var errorResponse map[string]interface{}
 		if err := json.NewDecoder(resp.Body).Decode(&errorResponse); err == nil {
@@ -158,7 +165,7 @@ func (c *AnthropicClient) GenerateResponseWithOptions(messages []string, options
 		return "", fmt.Errorf("Anthropic API error: %s", resp.Status)
 	}
 
-	// Parse response
+	// Parse response.
 	var result anthropicResponse
 	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
 		return "", fmt.Errorf("error parsing response: %w", err)
@@ -168,7 +175,7 @@ func (c *AnthropicClient) GenerateResponseWithOptions(messages []string, options
 		return "", fmt.Errorf("no response from Anthropic")
 	}
 
-	// Extract text from response
+	// Extract text from response.
 	var text string
 	for _, content := range result.Content {
 		if content.Type == "text" {
@@ -179,8 +186,8 @@ func (c *AnthropicClient) GenerateResponseWithOptions(messages []string, options
 	return text, nil
 }
 
-// CountTokens implements the LLMProvider interface for token counting
+// CountTokens implements the LLMProvider interface for token counting.
 func (c *AnthropicClient) CountTokens(text string) (int, error) {
-	// For MVP, use a simple heuristic
+	// For MVP, use a simple heuristic.
 	return utils.SimpleTokenCount(text), nil
 }

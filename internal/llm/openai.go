@@ -11,6 +11,7 @@ import (
 	"open-sonar/internal/utils"
 )
 
+// OpenAIClient implements the LLMProvider interface for OpenAI models.
 type OpenAIClient struct {
 	apiKey string
 	model  string
@@ -45,6 +46,14 @@ type openaiResponse struct {
 	} `json:"choices"`
 }
 
+// init registers the OpenAI provider with the pluggable registry.
+func init() {
+	RegisterProvider("openai", func(_ string) (LLMProvider, error) {
+		return NewOpenAIClient()
+	})
+}
+
+// NewOpenAIClient creates a new instance of OpenAIClient.
 func NewOpenAIClient() (*OpenAIClient, error) {
 	apiKey := os.Getenv("OPENAI_API_KEY")
 	if apiKey == "" {
@@ -53,7 +62,7 @@ func NewOpenAIClient() (*OpenAIClient, error) {
 
 	model := os.Getenv("OPENAI_MODEL")
 	if model == "" {
-		model = "gpt-3.5-turbo" // Default model
+		model = "gpt-3.5-turbo" // Default model.
 	}
 
 	return &OpenAIClient{
@@ -62,12 +71,15 @@ func NewOpenAIClient() (*OpenAIClient, error) {
 	}, nil
 }
 
+// GenerateResponse returns a response from the OpenAI model for a given query.
 func (c *OpenAIClient) GenerateResponse(query string) (string, error) {
 	options := DefaultLLMOptions()
 	messages := []string{fmt.Sprintf("user: %s", query)}
 	return c.GenerateResponseWithOptions(messages, options)
 }
 
+// GenerateResponseWithOptions sends a request to OpenAI's chat completions endpoint
+// using provided messages and options.
 func (c *OpenAIClient) GenerateResponseWithOptions(messages []string, options LLMOptions) (string, error) {
 	var openaiMessages []openaiMessage
 	for _, message := range messages {
