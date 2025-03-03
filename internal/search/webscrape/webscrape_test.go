@@ -66,7 +66,7 @@ func TestScrapeNoResults(t *testing.T) {
 
 func TestScrapeWithOptions(t *testing.T) {
 	options := SearchOptions{
-		MaxPages: 7,
+		MaxPages: 8,
 		MaxRetries: 1,
 		SearchDomainFilter: []string{".gov"},
 	}
@@ -74,7 +74,7 @@ func TestScrapeWithOptions(t *testing.T) {
 
 	results := ScrapeWithOptions("government data", options)
 
-	expectedResults := 7
+	expectedResults := 8
 	if len(results) != expectedResults {
 		t.Errorf("Expected %d result after domain filtering, got %d", expectedResults, len(results))
 	}
