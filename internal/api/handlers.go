@@ -15,6 +15,16 @@ import (
 	"open-sonar/internal/utils"
 )
 
+// HealthCheckHandler returns a simple JSON indicating service health.
+func HealthCheckHandler(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+	resp := map[string]interface{}{
+		"status":    "OK",
+		"timestamp": time.Now().UTC().Format(time.RFC3339),
+	}
+	json.NewEncoder(w).Encode(resp)
+}
+
 // TestHandler returns a simple status message.
 func TestHandler(w http.ResponseWriter, r *http.Request) {
 	resp := map[string]string{
@@ -169,7 +179,7 @@ func ChatCompletionsHandler(w http.ResponseWriter, r *http.Request) {
 			systemPrompt := createSearchPromptTemplate(userQuery, rankedResults)
 			messages = append(messages, fmt.Sprintf("system: %s", systemPrompt))
 
-			// Extract citations - make sure this actually returns non-empty values
+			// Extract citations
 			citationURLs = citations.ExtractCitationURLs(rankedResults)
 
 			// Log the extracted citations for debugging

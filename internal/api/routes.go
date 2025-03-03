@@ -18,6 +18,9 @@ func SetupRoutes() *mux.Router {
 	// Basic endpoints
 	r.HandleFunc("/test", TestHandler).Methods("GET")
 
+	// Health check endpoint
+	r.HandleFunc("/health", HealthCheckHandler).Methods("GET")
+
 	// Chat endpoints
 	r.HandleFunc("/chat", ChatHandler).Methods("POST")
 	r.HandleFunc("/chat/completions", ChatCompletionsHandler).Methods("POST")
