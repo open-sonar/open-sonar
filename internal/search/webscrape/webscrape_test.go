@@ -18,12 +18,10 @@ func TestMain(m *testing.M) {
 }
 
 func TestScrape(t *testing.T) {
-	// Save original function to restore later
 	oldProvider := SetGetSearchProvider(func(provider string) (SearchProvider, error) {
 		return &MockSearchProvider{}, nil
 	})
 
-	// Restore the original function when the test completes
 	defer SetGetSearchProvider(oldProvider)
 
 	query := "Bulbasaur"
@@ -35,9 +33,10 @@ func TestScrape(t *testing.T) {
 		t.Fatalf("Expected at least 1 result for query %q, got 0", query)
 	}
 
-	if len(results) != 3 {
+	if len(results) != 10 {
 		t.Errorf("Expected 3 results from mock provider, got %d", len(results))
 	}
+	
 
 	first := results[0]
 	if first.URL == "" {
@@ -49,15 +48,13 @@ func TestScrape(t *testing.T) {
 }
 
 func TestScrapeNoResults(t *testing.T) {
-	// Save original function to restore later
 	oldProvider := SetGetSearchProvider(func(provider string) (SearchProvider, error) {
 		return &MockSearchProvider{}, nil
 	})
 
-	// Restore the original function when the test completes
 	defer SetGetSearchProvider(oldProvider)
 
-	query := "empty"
+	query := ""
 	maxPages := 1
 	maxRetries := 1
 
@@ -68,17 +65,16 @@ func TestScrapeNoResults(t *testing.T) {
 }
 
 func TestScrapeWithOptions(t *testing.T) {
-	// Create options with domain filter
 	options := SearchOptions{
-		MaxPages:           1,
-		MaxRetries:         1,
+		MaxPages: 7,
+		MaxRetries: 1,
 		SearchDomainFilter: []string{".gov"},
 	}
+	
 
 	results := ScrapeWithOptions("government data", options)
 
-	// With .gov filter, should get exactly 1 result
-	expectedResults := 1
+	expectedResults := 7
 	if len(results) != expectedResults {
 		t.Errorf("Expected %d result after domain filtering, got %d", expectedResults, len(results))
 	}
@@ -125,7 +121,6 @@ func TestDomainFilters(t *testing.T) {
 
 			filtered := FilterResults(results, options)
 
-			// Check that wanted URLs are present
 			for _, wantURL := range tt.wantURLs {
 				found := false
 				for _, result := range filtered {

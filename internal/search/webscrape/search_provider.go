@@ -2,61 +2,57 @@ package webscrape
 
 import (
 	"fmt"
+	"strconv"
 	"strings"
 	"time"
 )
 
-// SearchOptions represents options for search providers
-type SearchOptions struct {
-	MaxPages            int
-	MaxRetries          int
-	SearchDomainFilter  []string
-	SearchRecencyFilter string
-}
+// Note: PageInfo and SearchOptions are defined in types.go
 
-// SearchProvider is an interface for different search engines
+// SearchProvider is an interface for different search engines.
 type SearchProvider interface {
 	Search(query string, options SearchOptions) ([]PageInfo, error)
 }
 
-// GetSearchProviderFunc is a function type for creating search providers
+// GetSearchProviderFunc is a function type for creating search providers.
 type GetSearchProviderFunc func(provider string) (SearchProvider, error)
 
-// DefaultGetSearchProvider is the default implementation
+// DefaultGetSearchProvider is the default implementation.
 var DefaultGetSearchProvider GetSearchProviderFunc = func(provider string) (SearchProvider, error) {
 	switch strings.ToLower(provider) {
 	case "duckduckgo":
-		return &DuckDuckGoSearchProvider{}, nil
-	// Add other search providers as needed
+		return NewDuckDuckGoSearchProvider(), nil
+	case "mock":
+		return NewMockSearchProvider(), nil
+	// Add other search providers as needed.
 	default:
-		return &DuckDuckGoSearchProvider{}, nil
+		return NewDuckDuckGoSearchProvider(), nil
 	}
 }
 
-// CurrentGetSearchProvider holds the current provider implementation
+// CurrentGetSearchProvider holds the current provider implementation.
 var CurrentGetSearchProvider GetSearchProviderFunc = DefaultGetSearchProvider
 
-// GetSearchProvider returns a search provider based on provider name
+// GetSearchProvider returns a search provider based on provider name.
 func GetSearchProvider(provider string) (SearchProvider, error) {
 	return CurrentGetSearchProvider(provider)
 }
 
-// SetGetSearchProvider allows tests to replace the provider lookup function
+// SetGetSearchProvider allows tests to replace the provider lookup function.
 func SetGetSearchProvider(fn GetSearchProviderFunc) GetSearchProviderFunc {
 	old := CurrentGetSearchProvider
 	CurrentGetSearchProvider = fn
 	return old
 }
 
-// RestoreDefaultGetSearchProvider restores the default provider lookup
+// RestoreDefaultGetSearchProvider restores the default provider lookup.
 func RestoreDefaultGetSearchProvider() {
 	CurrentGetSearchProvider = DefaultGetSearchProvider
 }
 
-// RecencyToTime converts a recency filter to a time.Time
+// RecencyToTime converts a recency filter to a time.Time.
 func RecencyToTime(recency string) (time.Time, error) {
 	now := time.Now()
-
 	switch strings.ToLower(recency) {
 	case "hour":
 		return now.Add(-1 * time.Hour), nil
@@ -67,72 +63,80 @@ func RecencyToTime(recency string) (time.Time, error) {
 	case "month":
 		return now.AddDate(0, -1, 0), nil
 	case "":
-		return time.Time{}, nil // No filter
+		return time.Time{}, nil
 	default:
 		return time.Time{}, fmt.Errorf("invalid recency filter: %s", recency)
 	}
 }
 
-// FilterResults filters results based on domain filters and recency
+// FilterResults filters results based on domain filters and recency.
 func FilterResults(results []PageInfo, options SearchOptions) []PageInfo {
 	if len(options.SearchDomainFilter) == 0 && options.SearchRecencyFilter == "" {
 		return results
 	}
 
 	var filtered []PageInfo
-
-	// Process domain filters
-	allowDomains := make(map[string]bool)
-	blockedDomains := make(map[string]bool)
-
-	for _, domain := range options.SearchDomainFilter {
-		if strings.HasPrefix(domain, "-") {
-			blockedDomains[strings.TrimPrefix(domain, "-")] = true
+	var allowFilters []string
+	var blockedFilters []string
+	for _, filter := range options.SearchDomainFilter {
+		if strings.HasPrefix(filter, "-") {
+			blockedFilters = append(blockedFilters, strings.TrimPrefix(filter, "-"))
 		} else {
-			allowDomains[domain] = true
+			allowFilters = append(allowFilters, filter)
 		}
 	}
 
-	// Process recency filter
 	var minTime time.Time
 	if options.SearchRecencyFilter != "" {
 		var err error
 		minTime, err = RecencyToTime(options.SearchRecencyFilter)
 		if err != nil {
-			// If invalid recency filter, ignore it
 			minTime = time.Time{}
 		}
 	}
 
 	for _, result := range results {
-		// Skip if the domain is blocked
 		domain := extractDomain(result.URL)
-		if blockedDomains[domain] {
+		// Check blocked filters (substring match).
+		blocked := false
+		for _, bf := range blockedFilters {
+			if strings.Contains(domain, bf) {
+				blocked = true
+				break
+			}
+		}
+		if blocked {
 			continue
 		}
 
-		// Check if we should only allow specific domains
-		if len(allowDomains) > 0 && !allowDomains[domain] {
-			continue
+		// If allow filters are specified, at least one must match.
+		if len(allowFilters) > 0 {
+			allowed := false
+			for _, af := range allowFilters {
+				if strings.Contains(domain, af) {
+					allowed = true
+					break
+				}
+			}
+			if !allowed {
+				continue
+			}
 		}
 
-		// Check recency if specified
+		// Check recency.
 		if !minTime.IsZero() && result.Published.Before(minTime) {
 			continue
 		}
-
 		filtered = append(filtered, result)
 	}
-
 	return filtered
 }
 
-// extractDomain extracts the domain from a URL
+// extractDomain extracts the domain from a URL.
 func extractDomain(url string) string {
 	url = strings.TrimPrefix(url, "http://")
 	url = strings.TrimPrefix(url, "https://")
 	url = strings.TrimPrefix(url, "www.")
-
 	parts := strings.Split(url, "/")
 	if len(parts) > 0 {
 		return parts[0]
@@ -140,10 +144,9 @@ func extractDomain(url string) string {
 	return url
 }
 
-// CreateMockResults creates sample PageInfo instances for testing
+// CreateMockResults creates sample PageInfo instances for testing.
 func CreateMockResults() []PageInfo {
 	mockTime := time.Now()
-
 	return []PageInfo{
 		{
 			URL:       "https://example.com/page1",
@@ -167,4 +170,29 @@ func CreateMockResults() []PageInfo {
 			Published: mockTime.Add(-30 * 24 * time.Hour),
 		},
 	}
+}
+
+// generateDummyResults returns a slice of n dummy PageInfo results.
+func generateDummyResults(n int) []PageInfo {
+	results := make([]PageInfo, n)
+	for i := 0; i < n; i++ {
+		results[i] = PageInfo{
+			URL:       "http://example.com/" + strconv.Itoa(i),
+			Title:     "Title " + strconv.Itoa(i),
+			Content:   "Content " + strconv.Itoa(i),
+			Summary:   "Summary " + strconv.Itoa(i),
+			Published: time.Now(),
+		}
+	}
+	return results
+}
+
+// NewDuckDuckGoSearchProvider returns a new DuckDuckGoSearchProvider.
+func NewDuckDuckGoSearchProvider() SearchProvider {
+	return &DuckDuckGoSearchProvider{}
+}
+
+// NewMockSearchProvider returns a new MockSearchProvider.
+func NewMockSearchProvider() SearchProvider {
+	return &MockSearchProvider{}
 }
