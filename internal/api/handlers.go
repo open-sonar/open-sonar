@@ -15,7 +15,7 @@ import (
 	"open-sonar/internal/utils"
 )
 
-// HealthCheckHandler returns a simple JSON indicating service health.
+// returns a simple JSON indicating service health.
 func HealthCheckHandler(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	resp := map[string]interface{}{
@@ -25,7 +25,7 @@ func HealthCheckHandler(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(resp)
 }
 
-// TestHandler returns a simple status message.
+// returns a simple status message.
 func TestHandler(w http.ResponseWriter, r *http.Request) {
 	resp := map[string]string{
 		"message": "open-sonar server is running.",
@@ -34,12 +34,12 @@ func TestHandler(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(resp)
 }
 
-// ChatCompletionsHandler handles chat completion requests according to Perplexity API spec
+// handles chat completion requests according to Perplexity API spec
 func ChatCompletionsHandler(w http.ResponseWriter, r *http.Request) {
 	// Check authentication
 	authHeader := r.Header.Get("Authorization")
 	if !strings.HasPrefix(authHeader, "Bearer ") {
-		http.Error(w, "Unauthorized: Missing or invalid Bearer token", http.StatusUnauthorized)
+		WriteJSONError(w, http.StatusUnauthorized, "Unauthorized: Missing or invalid Bearer token")
 		return
 	}
 
@@ -47,21 +47,21 @@ func ChatCompletionsHandler(w http.ResponseWriter, r *http.Request) {
 	bodyBytes, err := io.ReadAll(r.Body)
 	if err != nil {
 		utils.Error(fmt.Sprintf("Failed to read request body: %v", err))
-		http.Error(w, "Unable to read request body", http.StatusBadRequest)
+		WriteJSONError(w, http.StatusBadRequest, "Unable to read request body")
 		return
 	}
 
 	var chatReq models.ChatCompletionRequest
 	if err := json.Unmarshal(bodyBytes, &chatReq); err != nil {
 		utils.Error(fmt.Sprintf("Failed to parse JSON: %v", err))
-		http.Error(w, "Invalid JSON payload", http.StatusBadRequest)
+		WriteJSONError(w, http.StatusBadRequest, "Invalid JSON payload")
 		return
 	}
 
 	// Validate request
 	if len(chatReq.Messages) == 0 {
 		utils.Error("Missing 'messages' in request")
-		http.Error(w, "'messages' field is required", http.StatusBadRequest)
+		WriteJSONError(w, http.StatusBadRequest, "'messages' field is required")
 		return
 	}
 
@@ -88,7 +88,7 @@ func ChatCompletionsHandler(w http.ResponseWriter, r *http.Request) {
 	provider, err := llm.NewLLMProvider(modelName)
 	if err != nil {
 		utils.Error(fmt.Sprintf("Invalid LLM provider: %v", err))
-		http.Error(w, err.Error(), http.StatusBadRequest)
+		WriteJSONError(w, http.StatusBadRequest, err.Error())
 		return
 	}
 
@@ -103,7 +103,7 @@ func ChatCompletionsHandler(w http.ResponseWriter, r *http.Request) {
 
 	if userQuery == "" {
 		utils.Error("No user message found in request")
-		http.Error(w, "No user message found in request", http.StatusBadRequest)
+		WriteJSONError(w, http.StatusBadRequest, "No user message found in request")
 		return
 	}
 
@@ -198,7 +198,7 @@ func ChatCompletionsHandler(w http.ResponseWriter, r *http.Request) {
 	response, err := provider.GenerateResponseWithOptions(messages, options)
 	if err != nil {
 		utils.Error(fmt.Sprintf("LLM call failed: %v", err))
-		http.Error(w, fmt.Sprintf("LLM processing error: %v", err), http.StatusInternalServerError)
+		WriteJSONError(w, http.StatusInternalServerError, fmt.Sprintf("LLM processing error: %v", err))
 		return
 	}
 
@@ -235,14 +235,13 @@ func ChatCompletionsHandler(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(completionResponse)
 }
 
-// extractSearchQueries breaks down a complex query into search-friendly queries
+// breaks down a complex query into search-friendly queries
 func extractSearchQueries(query string) []string {
-	// For simple implementation, just return the original query
-	// In a more advanced implementation, we could use NLP to extract key topics
+	// could use NLP to extract key topics
 	return []string{query}
 }
 
-// rankResultsByRelevance scores and ranks results by relevance to the query
+// scores and ranks results by relevance to the query
 func rankResultsByRelevance(results []webscrape.PageInfo, query string) []webscrape.PageInfo {
 	// Simple relevance scoring based on keyword presence
 	type scoredResult struct {
@@ -305,7 +304,7 @@ func rankResultsByRelevance(results []webscrape.PageInfo, query string) []webscr
 	return rankedResults
 }
 
-// createSearchPromptTemplate creates a system prompt incorporating search results
+// creates a system prompt incorporating search results
 func createSearchPromptTemplate(query string, results []webscrape.PageInfo) string {
 	promptTemplate := `I'll help answer the question based on the web search results provided below.
 
@@ -344,7 +343,7 @@ Your answer should be well-structured, accurate, and directly address the user's
 	return fmt.Sprintf(promptTemplate, query, searchResultsText)
 }
 
-// formatEnhancedSearchResults creates a better formatted context for the LLM
+// creates a better formatted context for the LLM
 func formatEnhancedSearchResults(results []webscrape.PageInfo, query string) string {
 	formattedResults := fmt.Sprintf("Web search results for query: \"%s\"\n\n", query)
 
@@ -379,20 +378,20 @@ func ChatHandler(w http.ResponseWriter, r *http.Request) {
 	bodyBytes, err := io.ReadAll(r.Body)
 	if err != nil {
 		utils.Error(fmt.Sprintf("Failed to read request body: %v", err))
-		http.Error(w, "Unable to read request body", http.StatusBadRequest)
+		WriteJSONError(w, http.StatusBadRequest, "Unable to read request body")
 		return
 	}
 
 	var chatReq models.ChatRequest
 	if err := json.Unmarshal(bodyBytes, &chatReq); err != nil {
 		utils.Error(fmt.Sprintf("Failed to parse JSON: %v", err))
-		http.Error(w, "Invalid JSON", http.StatusBadRequest)
+		WriteJSONError(w, http.StatusBadRequest, "Invalid JSON")
 		return
 	}
 
 	if chatReq.Query == "" {
 		utils.Error("Missing 'query' in request")
-		http.Error(w, "Query field required", http.StatusBadRequest)
+		WriteJSONError(w, http.StatusBadRequest, "Query field required")
 		return
 	}
 
@@ -420,7 +419,7 @@ func ChatHandler(w http.ResponseWriter, r *http.Request) {
 		provider, err := llm.NewLLMProvider(chatReq.Provider)
 		if err != nil {
 			utils.Error(fmt.Sprintf("Invalid LLM provider: %v", err))
-			http.Error(w, err.Error(), http.StatusBadRequest)
+			WriteJSONError(w, http.StatusBadRequest, err.Error())
 			return
 		}
 
@@ -431,7 +430,7 @@ func ChatHandler(w http.ResponseWriter, r *http.Request) {
 		response, err := provider.GenerateResponse(chatReq.Query + "\n\n" + searchContext)
 		if err != nil {
 			utils.Error(fmt.Sprintf("LLM call failed: %v", err))
-			http.Error(w, fmt.Sprintf("LLM processing error: %v", err), http.StatusInternalServerError)
+			WriteJSONError(w, http.StatusInternalServerError, fmt.Sprintf("LLM processing error: %v", err))
 			return
 		}
 
@@ -451,7 +450,7 @@ func ChatHandler(w http.ResponseWriter, r *http.Request) {
 	provider, err := llm.NewLLMProvider(chatReq.Provider)
 	if err != nil {
 		utils.Error(fmt.Sprintf("Invalid LLM provider: %v", err))
-		http.Error(w, err.Error(), http.StatusBadRequest)
+		WriteJSONError(w, http.StatusBadRequest, err.Error())
 		return
 	}
 
@@ -459,7 +458,7 @@ func ChatHandler(w http.ResponseWriter, r *http.Request) {
 	response, err := provider.GenerateResponse(chatReq.Query)
 	if err != nil {
 		utils.Error(fmt.Sprintf("LLM call failed: %v", err))
-		http.Error(w, fmt.Sprintf("LLM processing error: %v", err), http.StatusInternalServerError)
+		WriteJSONError(w, http.StatusInternalServerError, fmt.Sprintf("LLM processing error: %v", err))
 		return
 	}
 
@@ -472,7 +471,8 @@ func ChatHandler(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(jsonResponse)
 }
 
-// formatSearchResults formats up to 3 results for LLM context.
+
+// formats up to 3 results for LLM context.
 func formatSearchResults(results []webscrape.PageInfo) string {
 	formatted := ""
 	for i, res := range results {
@@ -482,4 +482,17 @@ func formatSearchResults(results []webscrape.PageInfo) string {
 		}
 	}
 	return formatted
+}
+
+
+// writes a structured JSON error to the response.
+func WriteJSONError(w http.ResponseWriter, code int, message string) {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(code)
+	json.NewEncoder(w).Encode(map[string]interface{}{
+		"error": map[string]interface{}{
+			"code":    code,
+			"message": message,
+		},
+	})
 }

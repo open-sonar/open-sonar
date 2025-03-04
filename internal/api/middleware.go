@@ -14,15 +14,15 @@ import (
 
 var (
 	// Global rate limiter for API endpoints
-	// 60 requests per minute per API key
+	// 60 requests per min
 	apiLimiter = cache.NewRateLimiter(60, 60, time.Minute)
 
 	// More restrictive limiter for LLM providers
-	// 20 requests per minute per API key
+	// 20 requests per min
 	llmLimiter = cache.NewRateLimiter(20, 20, time.Minute)
 
 	// IP-based limiter for unauthenticated requests
-	// 30 requests per minute per IP
+	// 30 requests per min
 	ipLimiter = cache.NewRateLimiter(30, 30, time.Minute)
 
 	// Request cache with 5-minute TTL
@@ -33,7 +33,6 @@ var (
 	validAPIKeyMutex sync.RWMutex
 )
 
-// Initialize API keys from environment
 func init() {
 	apiKey := os.Getenv("AUTH_TOKEN")
 	if apiKey != "" {
@@ -43,19 +42,18 @@ func init() {
 	}
 }
 
-// AddAPIKey adds a new API key at runtime
+// adds a new API key at runtime
 func AddAPIKey(key string) {
 	validAPIKeyMutex.Lock()
 	validAPIKeys[key] = true
 	validAPIKeyMutex.Unlock()
 }
 
-// IsValidAPIKey checks if the API key is valid
+// checks if the API key is valid
 func IsValidAPIKey(key string) bool {
 	validAPIKeyMutex.RLock()
 	defer validAPIKeyMutex.RUnlock()
 
-	// If no API keys are defined, allow all
 	if len(validAPIKeys) == 0 {
 		return true
 	}
@@ -63,17 +61,17 @@ func IsValidAPIKey(key string) bool {
 	return validAPIKeys[key]
 }
 
-// RateLimitMiddleware limits the number of requests
+// limits the number of requests
 func RateLimitMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		// Extract API key or IP for rate limiting
+		// Extract API key or IP
 		apiKey := extractAPIKey(r)
 		var limitKey string
 
 		if apiKey != "" {
 			limitKey = "key:" + apiKey
 		} else {
-			// Fall back to IP-based limiting
+			// Fall back
 			limitKey = "ip:" + getClientIP(r)
 		}
 
@@ -87,7 +85,7 @@ func RateLimitMiddleware(next http.Handler) http.Handler {
 
 		if !allowed {
 			utils.Warn(fmt.Sprintf("Rate limit exceeded for %s", limitKey))
-			http.Error(w, "Rate limit exceeded. Try again later.", http.StatusTooManyRequests)
+			WriteJSONError(w, http.StatusTooManyRequests, "Rate limit exceeded. Try again later.")
 			return
 		}
 
@@ -95,7 +93,7 @@ func RateLimitMiddleware(next http.Handler) http.Handler {
 	})
 }
 
-// AuthMiddleware authenticates requests
+// authenticates requests
 func AuthMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		// Skip auth for certain endpoints
@@ -110,7 +108,7 @@ func AuthMiddleware(next http.Handler) http.Handler {
 		// Check if valid
 		if !IsValidAPIKey(apiKey) {
 			utils.Warn(fmt.Sprintf("Invalid API key from %s", getClientIP(r)))
-			http.Error(w, "Unauthorized: Invalid API key", http.StatusUnauthorized)
+			WriteJSONError(w, http.StatusUnauthorized, "Unauthorized: Invalid API key")
 			return
 		}
 
@@ -118,7 +116,7 @@ func AuthMiddleware(next http.Handler) http.Handler {
 	})
 }
 
-// CacheMiddleware caches responses for GET requests
+// caches responses for GET requests
 func CacheMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		// Only cache GET requests
@@ -127,10 +125,8 @@ func CacheMiddleware(next http.Handler) http.Handler {
 			return
 		}
 
-		// Create a cache key from the URL
 		cacheKey := r.URL.String()
 
-		// Check if we have a cached response
 		if cached, found := responseCache.Get(cacheKey); found {
 			cachedResp := cached.(string)
 			w.Header().Set("Content-Type", "application/json")
@@ -139,7 +135,6 @@ func CacheMiddleware(next http.Handler) http.Handler {
 			return
 		}
 
-		// Create a response recorder to capture the response
 		recorder := &responseRecorder{
 			ResponseWriter: w,
 			statusCode:     http.StatusOK,
@@ -187,7 +182,7 @@ func getClientIP(r *http.Request) string {
 	return ip
 }
 
-// responseRecorder is a custom ResponseWriter to capture the response
+// custom ResponseWriter to capture the response
 type responseRecorder struct {
 	http.ResponseWriter
 	statusCode int
@@ -203,3 +198,4 @@ func (r *responseRecorder) Write(b []byte) (int, error) {
 	r.body.Write(b)
 	return r.ResponseWriter.Write(b)
 }
+
