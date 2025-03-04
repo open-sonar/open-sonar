@@ -48,7 +48,7 @@ func TestChatHandler(t *testing.T) {
 				NeedSearch: true,
 				Pages:      2,
 				Retries:    1,
-				Provider:   "mock", // Specify the mock provider
+				Provider:   "mock",
 			},
 			expectedStatus:   http.StatusOK,
 			expectedDecision: "search + LLM call",
@@ -64,7 +64,7 @@ func TestChatHandler(t *testing.T) {
 		},
 		{
 			name:           "test invalid",
-			requestBody:    models.ChatRequest{}, // invalid JSON
+			requestBody:    models.ChatRequest{}, // invalid JSON scenario
 			expectedStatus: http.StatusBadRequest,
 		},
 	}
@@ -76,9 +76,11 @@ func TestChatHandler(t *testing.T) {
 				t.Fatalf("Failed to compile request: %v", err)
 			}
 
-			if tt.name == "Invalid JSON" {
+			// Simulate a truly invalid JSON payload
+			if tt.name == "test invalid" {
 				reqBody = []byte(`{invalid json}`)
 			}
+
 			req, err := http.NewRequest("POST", "/chat", bytes.NewBuffer(reqBody))
 			if err != nil {
 				t.Fatalf("Failed to create request: %v", err)
@@ -94,13 +96,34 @@ func TestChatHandler(t *testing.T) {
 				t.Errorf("Expected status %d, got %d", tt.expectedStatus, rr.Code)
 			}
 
-			var resp map[string]interface{}
-			if err := json.Unmarshal(rr.Body.Bytes(), &resp); err == nil {
-				if tt.expectedDecision != "" && resp["decision"] != tt.expectedDecision {
-					t.Errorf("Expected decision: %s, got: %s", tt.expectedDecision, resp["decision"])
+			if rr.Code == http.StatusOK {
+				var resp map[string]interface{}
+				if err := json.Unmarshal(rr.Body.Bytes(), &resp); err != nil {
+					t.Errorf("Could not parse success response: %v", err)
+				} else {
+					// Check for the decision field if expected
+					if tt.expectedDecision != "" && resp["decision"] != tt.expectedDecision {
+						t.Errorf("Expected decision: %s, got: %s", tt.expectedDecision, resp["decision"])
+					}
 				}
 			} else {
-				t.Logf("Couldn't parse response: %s", rr.Body.String())
+				// parse the structured JSON error
+				var errResp struct {
+					Error struct {
+						Code    int    `json:"code"`
+						Message string `json:"message"`
+					} `json:"error"`
+				}
+				if err := json.Unmarshal(rr.Body.Bytes(), &errResp); err != nil {
+					t.Errorf("Expected JSON error response, got: %s", rr.Body.String())
+				} else {
+					if errResp.Error.Code != rr.Code {
+						t.Errorf("Expected error code %d, got %d", rr.Code, errResp.Error.Code)
+					}
+					if errResp.Error.Message == "" {
+						t.Error("Expected a non-empty error message")
+					}
+				}
 			}
 		})
 	}
@@ -158,6 +181,7 @@ func TestChatCompletionsHandler(t *testing.T) {
 			var reqBody []byte
 			var err error
 
+			// If the test scenario is "invalid json"
 			switch body := tt.requestBody.(type) {
 			case string:
 				reqBody = []byte(body)
@@ -189,7 +213,6 @@ func TestChatCompletionsHandler(t *testing.T) {
 				t.Errorf("Expected status %d, got %d", tt.expectedStatus, rr.Code)
 			}
 
-			// For successful responses, validate JSON structure
 			if rr.Code == http.StatusOK {
 				var resp models.ChatCompletionResponse
 				if err := json.Unmarshal(rr.Body.Bytes(), &resp); err != nil {
@@ -209,6 +232,24 @@ func TestChatCompletionsHandler(t *testing.T) {
 						t.Error("No choices returned in response")
 					} else if resp.Choices[0].Message.Role != "assistant" {
 						t.Errorf("Expected role 'assistant', got '%s'", resp.Choices[0].Message.Role)
+					}
+				}
+			} else {
+				// Error path: parse JSON error
+				var errResp struct {
+					Error struct {
+						Code    int    `json:"code"`
+						Message string `json:"message"`
+					} `json:"error"`
+				}
+				if err := json.Unmarshal(rr.Body.Bytes(), &errResp); err != nil {
+					t.Errorf("Expected JSON error response, got: %s", rr.Body.String())
+				} else {
+					if errResp.Error.Code != rr.Code {
+						t.Errorf("Expected error code %d, got %d", rr.Code, errResp.Error.Code)
+					}
+					if errResp.Error.Message == "" {
+						t.Error("Expected a non-empty error message")
 					}
 				}
 			}
