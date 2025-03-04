@@ -1,5 +1,9 @@
 package main
 
+/*
+#include <stdlib.h>
+*/
+import "C"
 import (
 	"log"
 	"os"
@@ -9,8 +13,10 @@ import (
 	"open-sonar/sonar"
 )
 
-func main() {
-	// Parse port from environment
+// reads the PORT and LOG_LEVEL environment variables, creates the server, and runs it (blocking)
+//export StartServerFromEnv
+func StartServerFromEnv() C.int {
+	// default port 8080
 	port := 8080
 	if portStr := os.Getenv("PORT"); portStr != "" {
 		if p, err := strconv.Atoi(portStr); err == nil {
@@ -18,7 +24,7 @@ func main() {
 		}
 	}
 
-	// Parse log level from environment
+	// default to utils.InfoLevel
 	logLevel := utils.InfoLevel
 	if logLevelStr := os.Getenv("LOG_LEVEL"); logLevelStr != "" {
 		switch logLevelStr {
@@ -33,14 +39,34 @@ func main() {
 		}
 	}
 
-	// Create server with options from environment
+	// Create server with options from environment.
 	server := sonar.NewServer(
 		sonar.WithPort(port),
-		sonar.WithLogLevel(logLevel), // Now correctly passing utils.LogLevel
+		sonar.WithLogLevel(logLevel),
 	)
 
-	// Run the server (blocking)
+	// Run the server (blocking).
 	if err := server.Run(); err != nil {
-		log.Fatalf("Server error: %v", err)
+		log.Printf("Server error: %v", err)
+		return -1
 	}
+	return 0
 }
+
+// creates the server using the given port and logLevel values, then runs the server (blocking).
+//export StartServer
+func StartServer(port C.int, logLevel C.int) C.int {
+	server := sonar.NewServer(
+		sonar.WithPort(int(port)),
+		sonar.WithLogLevel(utils.LogLevel(int(logLevel))),
+	)
+
+	if err := server.Run(); err != nil {
+		log.Printf("Server error: %v", err)
+		return -1
+	}
+	return 0
+}
+
+// won't be executed, here for shared lib
+func main() {}
