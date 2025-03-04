@@ -1,6 +1,7 @@
 package api
 
 import (
+	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -99,6 +100,26 @@ func TestAuthMiddleware(t *testing.T) {
 			if *called != tt.wantCalled {
 				t.Errorf("Expected handler called: %v, got: %v", tt.wantCalled, *called)
 			}
+
+			// parse the JSON error
+			if recorder.Code != http.StatusOK {
+				var errResp struct {
+					Error struct {
+						Code    int    `json:"code"`
+						Message string `json:"message"`
+					} `json:"error"`
+				}
+				if err := json.Unmarshal(recorder.Body.Bytes(), &errResp); err != nil {
+					t.Errorf("Expected JSON error response, got: %s", recorder.Body.String())
+				} else {
+					if errResp.Error.Code != recorder.Code {
+						t.Errorf("Expected error code %d, got %d", recorder.Code, errResp.Error.Code)
+					}
+					if errResp.Error.Message == "" {
+						t.Error("Expected a non-empty error message")
+					}
+				}
+			}
 		})
 	}
 }
@@ -147,35 +168,48 @@ func TestRateLimitMiddleware(t *testing.T) {
 			// Create test handler
 			handler, _ := createTestHandler()
 
-			// Create response recorder
-			recorder := httptest.NewRecorder()
+			var recorder *httptest.ResponseRecorder
 
-			// Run multiple requests with the same key/IP
 			for i := 0; i < tt.runCount; i++ {
-				// Create new recorder for each request
 				recorder = httptest.NewRecorder()
 
-				// Create request
 				req := httptest.NewRequest("GET", tt.path, nil)
 				req.RemoteAddr = tt.ip + ":12345"
 				if tt.authHeader != "" {
 					req.Header.Set("Authorization", tt.authHeader)
 				}
 
-				// Apply middleware
 				RateLimitMiddleware(handler).ServeHTTP(recorder, req)
 			}
 
-			// Check status of the last request
 			if recorder.Code != tt.wantStatus {
 				t.Errorf("Expected status %d for last request, got %d", tt.wantStatus, recorder.Code)
+			}
+
+			// If rate-limited, parse the JSON error
+			if recorder.Code == http.StatusTooManyRequests {
+				var errResp struct {
+					Error struct {
+						Code    int    `json:"code"`
+						Message string `json:"message"`
+					} `json:"error"`
+				}
+				if err := json.Unmarshal(recorder.Body.Bytes(), &errResp); err != nil {
+					t.Errorf("Expected JSON error response, got: %s", recorder.Body.String())
+				} else {
+					if errResp.Error.Code != http.StatusTooManyRequests {
+						t.Errorf("Expected error code 429, got %d", errResp.Error.Code)
+					}
+					if errResp.Error.Message == "" {
+						t.Error("Expected a non-empty error message")
+					}
+				}
 			}
 		})
 	}
 }
 
 func TestCacheMiddleware(t *testing.T) {
-	// Create a handler that returns a unique value each time
 	requestCount := 0
 	handler := func(w http.ResponseWriter, r *http.Request) {
 		requestCount++
@@ -205,16 +239,13 @@ func TestCacheMiddleware(t *testing.T) {
 	if recorder1.Body.String() != "Response 1" {
 		t.Errorf("Expected 'Response 1', got '%s'", recorder1.Body.String())
 	}
-
 	if recorder2.Body.String() != "Response 1" {
 		t.Errorf("Expected cached 'Response 1', got '%s'", recorder2.Body.String())
 	}
-
 	if recorder3.Body.String() != "Response 2" {
 		t.Errorf("Expected 'Response 2', got '%s'", recorder3.Body.String())
 	}
 
-	// Check that the second request hit the cache
 	if recorder2.Header().Get("X-Cache") != "HIT" {
 		t.Error("Expected cache HIT for second request")
 	}
@@ -233,7 +264,6 @@ func TestCacheMiddleware(t *testing.T) {
 	if postRecorder1.Body.String() != "Response 1" {
 		t.Errorf("Expected 'Response 1', got '%s'", postRecorder1.Body.String())
 	}
-
 	if postRecorder2.Body.String() != "Response 2" {
 		t.Errorf("Expected 'Response 2', got '%s'", postRecorder2.Body.String())
 	}
