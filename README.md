@@ -2,7 +2,7 @@
 
 A web-search enhanced AI assistant that combines the power of web search with local LLM inference to provide accurate, up-to-date information with source citations.
 
-Currently in progress, when complete we will port it over as a Python and JS package.
+Ported over as a Python and JS package.
 
 ## Features
 
